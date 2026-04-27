@@ -83,12 +83,9 @@
     <div class="logo-mark">⚖</div>
     <div><div class="logo-name">خدماتي الإدارية</div><div class="logo-sub">بلدية النموذج</div></div>
   </a>
-  <div style="display:flex;align-items:center;gap:8px">
-    <span style="font-size:11px;color:var(--muted);background:var(--accent-light);border:1px solid var(--accent-border);padding:4px 10px;border-radius:20px">
-      🟢 الموقع متاح للعموم
-    </span>
-    <a href="admin.html" style="font-size:11px;color:var(--muted);text-decoration:none">إدارة ←</a>
-  </div>
+  <span style="font-size:11px;color:var(--muted);background:var(--accent-light);border:1px solid var(--accent-border);padding:4px 10px;border-radius:20px">
+    🟢 الموقع متاح للعموم
+  </span>
 </header>
 
 <div class="page-wrap">
@@ -101,7 +98,9 @@
     <div class="step-line"></div>
     <div class="step-item" id="si3"><div class="step-num" id="sn3">3</div><div class="step-lbl">الوثائق</div></div>
     <div class="step-line"></div>
-    <div class="step-item" id="si4"><div class="step-num" id="sn4">4</div><div class="step-lbl">التأكيد</div></div>
+    <div class="step-item" id="si4"><div class="step-num" id="sn4">4</div><div class="step-lbl">مراجعة</div></div>
+    <div class="step-line"></div>
+    <div class="step-item" id="si5"><div class="step-num" id="sn5">5</div><div class="step-lbl">التأكيد</div></div>
   </div>
 
   <!-- STEP 1: الخدمة -->
@@ -203,8 +202,40 @@
       </div>
     </div>
     <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:10px">
-      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px" onclick="submitRequest()">✓ إرسال الطلب</button>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px" onclick="goToReview()">مراجعة المعلومات ←</button>
       <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="goTo(2)">→ رجوع</button>
+    </div>
+  </div>
+
+  <!-- STEP 3.5: مراجعة المعلومات قبل التأكيد -->
+  <div class="pg" id="pg35">
+    <div class="card">
+      <div class="card-head">
+        <h2>🔍 مراجعة المعلومات</h2>
+        <span style="font-size:12px;color:var(--muted)">هل أنت متأكد من المعلومات؟</span>
+      </div>
+      <div class="card-body">
+        <div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:.85rem 1.1rem;font-size:13px;color:#8a5a00;margin-bottom:1.25rem">
+          ⚠ بعد الإرسال لا يمكن تعديل المعلومات. تأكد من صحة كل البيانات.
+        </div>
+
+        <!-- البيانات الشخصية -->
+        <div style="margin-bottom:1rem">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:.75rem;letter-spacing:.5px">البيانات الشخصية</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem 1rem" id="rev-personal"></div>
+        </div>
+        <div style="height:1px;background:var(--border);margin-bottom:1rem"></div>
+
+        <!-- الخدمة والوثائق -->
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:.75rem;letter-spacing:.5px">الخدمة والوثائق</div>
+          <div id="rev-service"></div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px" onclick="submitRequest()">✓ تأكيد وإرسال الطلب</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="backToStep3()">→ رجوع للتصحيح</button>
     </div>
   </div>
 
@@ -312,19 +343,52 @@ function pick(s){
 }
 
 function goTo(n){
-  document.getElementById('pg'+cur).classList.remove('active');
+  // إخفاء الصفحة الحالية (بما فيها pg35)
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('active'));
   document.getElementById('pg'+n).classList.add('active');
-  for(let i=1;i<=4;i++){
+  // تحديث شريط الخطوات (5 خطوات)
+  const stepMap={1:1,2:2,3:3,35:4,4:5}; // رقم الصفحة → رقم الخطوة
+  const curStep=stepMap[n]||n;
+  for(let i=1;i<=5;i++){
     const si=document.getElementById('si'+i), sn=document.getElementById('sn'+i);
+    if(!si)continue;
     si.classList.remove('active','done');
-    if(i<n){si.classList.add('done');sn.textContent='✓';}
-    else if(i===n){si.classList.add('active');sn.textContent=i;}
+    if(i<curStep){si.classList.add('done');sn.textContent='✓';}
+    else if(i===curStep){si.classList.add('active');sn.textContent=i;}
     else sn.textContent=i;
   }
   if(n===3) buildUploads();
   cur=n;
   window.scrollTo({top:0,behavior:'smooth'});
 }
+
+function goToReview(){
+  // بناء محتوى صفحة المراجعة
+  const rows=[
+    ['الخدمة',      sel?sel.name:'—'],
+    ['الاسم بالعربية', document.getElementById('f-name-ar').value||'—'],
+    ['Nom français', document.getElementById('f-name-fr').value||'—'],
+    ['NIN',          document.getElementById('f-nin').value||'—'],
+    ['تاريخ الميلاد',document.getElementById('f-dob').value||'—'],
+    ['الهاتف',       document.getElementById('f-phone').value||'—'],
+    ['العنوان',      document.getElementById('f-address').value||'—'],
+    ['البريد',       document.getElementById('f-email').value||'—'],
+    ['الغرض',        document.getElementById('f-purpose').value||'—'],
+    ['ملاحظات',      document.getElementById('f-notes').value||'—'],
+  ];
+  const rp=document.getElementById('rev-personal');
+  rp.innerHTML=rows.map(([l,v])=>`
+    <div style="font-size:12px;color:var(--muted)">${l}</div>
+    <div style="font-size:13px;font-weight:600;${l==='NIN'||l==='Nom français'?'direction:ltr;text-align:right':''}">${v}</div>
+  `).join('');
+  const rs=document.getElementById('rev-service');
+  rs.innerHTML=`<div style="font-size:14px;font-weight:600">${sel?sel.icon+' '+sel.name:'—'}</div>
+  <div style="margin-top:8px;font-size:12px;color:var(--muted)">${sel?sel.docs.map(d=>'📎 '+d).join(' · '):''}
+  </div>`;
+  goTo(35);
+}
+
+function backToStep3(){goTo(3);}
 
 // NIN validation (18 digits)
 function checkNIN(inp){

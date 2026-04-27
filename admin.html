@@ -373,10 +373,13 @@ function openReq(id){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
       <div class="field">
         <label>تعيين موظف</label>
-        <select id="modal-agent">
+        <select id="modal-agent" onchange="onAgentChange()">
           <option value="">— غير مُعيَّن —</option>
           ${agentOptions}
         </select>
+        <div id="agent-hint" style="font-size:11px;color:var(--accent);margin-top:3px;display:none">
+          ✓ سيتحول الطلب تلقائياً إلى "قيد المراجعة"
+        </div>
       </div>
       <div class="field">
         <label>تغيير الحالة</label>
@@ -393,10 +396,24 @@ function openReq(id){
     <button class="btn btn-primary" onclick="saveReq('${id}')">حفظ التغييرات</button>`;
   document.getElementById('req-modal').classList.add('show');
 }
+function onAgentChange(){
+  const ag=document.getElementById('modal-agent').value;
+  const st=document.getElementById('modal-status');
+  const hint=document.getElementById('agent-hint');
+  if(ag && st.value==='new'){
+    st.value='review';
+    hint.style.display='block';
+  } else {
+    hint.style.display='none';
+  }
+}
+
 function saveReq(id){
   const st=document.getElementById('modal-status').value;
   const ag=document.getElementById('modal-agent').value;
-  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:st,agentId:ag?parseInt(ag):null}:r);
+  // إذا عُيِّن موظف والحالة لا تزال "جديد" → تحويل تلقائي لـ "قيد المراجعة"
+  const autoStatus = (ag && st==='new') ? 'review' : st;
+  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:autoStatus,agentId:ag?parseInt(ag):null}:r);
   saveRequests(REQUESTS);
   closeModal('req-modal'); renderStats(); renderTable();
 }
