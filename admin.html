@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة التحكم — خدماتي الإدارية</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+/* Login screen */
+.login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:2.5rem 2rem;width:100%;max-width:380px;text-align:center}
+.login-icon{font-size:36px;margin-bottom:1rem}
+.login-title{font-size:18px;font-weight:700;margin-bottom:.5rem}
+.login-sub{font-size:13px;color:var(--muted);margin-bottom:1.5rem}
+.login-card input{text-align:center;font-size:15px;letter-spacing:3px}
+.login-err{font-size:12px;color:var(--danger);margin-top:.5rem;display:none}
+
+/* Main admin */
+.admin-main{display:none}
+.admin-main.show{display:block}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:5px;margin-bottom:1.5rem;box-shadow:var(--shadow)}
+.tab{flex:1;padding:9px;border-radius:var(--radius-sm);border:none;background:transparent;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);transition:.2s}
+.tab.active{background:var(--bg);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tc{display:none}
+.tc.active{display:block;animation:fadeIn .25s ease}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.5rem}
+@media(max-width:600px){.stats{grid-template-columns:1fr 1fr}}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;box-shadow:var(--shadow)}
+.stat-num{font-size:26px;font-weight:700;line-height:1;margin-bottom:4px}
+.stat-lbl{font-size:11px;color:var(--muted)}
+.c-blue .stat-num{color:#1a4d8f}
+.c-warn .stat-num{color:#8a5a00}
+.c-green .stat-num{color:var(--accent)}
+.c-red .stat-num{color:var(--danger)}
+
+/* Table */
+.req-table{width:100%;border-collapse:collapse}
+.req-table th{text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.6rem 1rem;border-bottom:1px solid var(--border);background:var(--bg)}
+.req-table td{padding:.8rem 1rem;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.req-table tr:last-child td{border-bottom:none}
+.req-table tr:hover td{background:var(--bg)}
+.req-name{font-weight:600}
+.req-ref{font-size:11px;color:var(--muted);direction:ltr;display:inline-block}
+
+/* Filter bar */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;padding:1rem 1.5rem .5rem}
+.flt{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;font-family:inherit;font-size:12px;cursor:pointer;color:var(--muted);transition:.2s}
+.flt.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent-border)}
+
+/* Agent badge */
+.agent-chip{display:inline-flex;align-items:center;gap:5px;background:var(--info-bg);border:1px solid var(--info-border);border-radius:12px;padding:2px 8px;font-size:11px;color:#1a4d8f}
+.agent-chip.none{background:var(--bg);border-color:var(--border-strong);color:var(--muted)}
+
+/* Services list */
+.svc-row{display:flex;align-items:center;justify-content:space-between;padding:.85rem 0;border-bottom:1px solid var(--border)}
+.svc-row:last-child{border-bottom:none}
+.svc-info{display:flex;align-items:center;gap:10px}
+
+/* Agents list */
+.agent-row{display:flex;align-items:center;justify-content:space-between;padding:.8rem 0;border-bottom:1px solid var(--border)}
+.agent-row:last-child{border-bottom:none}
+.agent-avatar{width:34px;height:34px;border-radius:50%;background:var(--accent-light);border:1.5px solid var(--accent-border);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent);flex-shrink:0}
+
+/* Charts */
+.bar-row{margin-bottom:.85rem}
+.bar-lbl{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
+.bar-track{background:var(--bg);border-radius:4px;height:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
+
+/* Mobile */
+@media(max-width:640px){
+  .stats{grid-template-columns:1fr 1fr}
+  .tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .tab{flex-shrink:0;white-space:nowrap;font-size:12px;padding:8px 10px}
+  .filter-bar{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .flt{flex-shrink:0;white-space:nowrap}
+  #tc-stats>div{grid-template-columns:1fr !important}
+  .agent-row{flex-direction:column;align-items:flex-start;gap:.75rem}
+  .agent-row>div:last-child{width:100%;display:flex;gap:8px}
+  .agent-row>div:last-child .btn{flex:1;justify-content:center}
+  .login-card{padding:2rem 1.25rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ شاشة الدخول ══ -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="login-icon">🔐</div>
+    <div class="login-title">لوحة التحكم</div>
+    <div class="login-sub">خدماتي الإدارية — بلدية النموذج</div>
+    <div class="field" style="margin-bottom:.75rem">
+      <label>كلمة المرور</label>
+      <input type="password" id="pwd-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-err" id="login-err">كلمة المرور غير صحيحة</div>
+    <button class="btn btn-primary" style="width:100%;margin-top:1rem;justify-content:center" onclick="doLogin()">دخول</button>
+  </div>
+</div>
+
+<!-- ══ الواجهة الرئيسية ══ -->
+<div class="admin-main" id="admin-main">
+
+  <header class="site-header">
+    <a class="logo" href="index.html">
+      <div class="logo-mark">⚖</div>
+      <div><div class="logo-name">خدماتي الإدارية</div><div class="logo-sub">لوحة التحكم</div></div>
+    </a>
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="index.html" style="font-size:12px;color:var(--muted);text-decoration:none;padding:5px 12px;border:1px solid var(--border);border-radius:20px">← صفحة الزبون</a>
+      <button onclick="doLogout()" class="btn btn-danger btn-sm">خروج</button>
+    </div>
+  </header>
+
+  <div class="page-wrap wide">
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('requests',this)">📥 الطلبات</button>
+      <button class="tab" onclick="switchTab('agents',this)">👥 الموظفون</button>
+      <button class="tab" onclick="switchTab('services',this)">⚙️ الخدمات</button>
+      <button class="tab" onclick="switchTab('stats',this)">📊 إحصائيات</button>
+    </div>
+
+    <!-- ── الطلبات ── -->
+    <div class="tc active" id="tc-requests">
+      <div class="stats" id="stats-bar"></div>
+      <div class="card">
+        <div class="card-head">
+          <h2>قائمة الطلبات</h2>
+          <input type="text" id="srch" placeholder="بحث..." style="width:180px;font-size:12px;padding:6px 10px" oninput="renderTable()">
+        </div>
+        <div class="filter-bar">
+          <button class="flt active" data-f="all" onclick="setFlt(this)">الكل</button>
+          <button class="flt" data-f="new" onclick="setFlt(this)">جديد</button>
+          <button class="flt" data-f="review" onclick="setFlt(this)">قيد المراجعة</button>
+          <button class="flt" data-f="done" onclick="setFlt(this)">مكتمل</button>
+          <button class="flt" data-f="rejected" onclick="setFlt(this)">مرفوض</button>
+        </div>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+          <table class="req-table" id="req-table"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── الموظفون ── -->
+    <div class="tc" id="tc-agents">
+      <div class="card">
+        <div class="card-head">
+          <h2>قائمة الموظفين</h2>
+          <button class="btn btn-primary btn-sm" onclick="openAddAgent()">+ إضافة موظف</button>
+        </div>
+        <div class="card-body" id="agents-list"></div>
+      </div>
+    </div>
+
+    <!-- ── الخدمات ── -->
+    <div class="tc" id="tc-services">
+      <div class="card">
+        <div class="card-head">
+          <h2>الخدمات المتاحة</h2>
+          <button class="btn btn-primary btn-sm" onclick="openAddSvc()">+ إضافة خدمة</button>
+        </div>
+        <div class="card-body" id="svc-list"></div>
+      </div>
+    </div>
+
+    <!-- ── إحصائيات ── -->
+    <div class="tc" id="tc-stats">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="card"><div class="card-head"><h2>الطلبات حسب الخدمة</h2></div><div class="card-body" id="chart-svc"></div></div>
+        <div class="card"><div class="card-head"><h2>الطلبات حسب الحالة</h2></div><div class="card-body" id="chart-st"></div></div>
+        <div class="card"><div class="card-head"><h2>الطلبات حسب الموظف</h2></div><div class="card-body" id="chart-agent"></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal: تفاصيل طلب -->
+<div class="overlay" id="req-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3 id="modal-title">تفاصيل الطلب</h3><button class="modal-close" onclick="closeModal('req-modal')">✕</button></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot" id="modal-foot"></div>
+  </div>
+</div>
+
+<!-- Modal: إضافة موظف -->
+<div class="overlay" id="agent-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="agent-modal-title">إضافة موظف</h3><button class="modal-close" onclick="closeModal('agent-modal')">✕</button></div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:1rem">
+        <div class="field"><label>الاسم الكامل <span class="req">*</span></label><input type="text" id="ag-name" placeholder="مثال: سارة بن عمر"></div>
+        <div class="field"><label>المهمة / الوظيفة</label><input type="text" id="ag-role" placeholder="مثال: موظف استقبال"></div>
+        <div class="field"><label>رقم الهاتف</label><input type="tel" id="ag-phone" placeholder="0x xx xx xx xx" style="direction:ltr;text-align:right"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('agent-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveAgent()">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: إضافة خدمة -->
+<div class="overlay" id="svc-modal">
+  <div class="modal">
+    <div class="modal-head"><h3>إضافة خدمة</h3><button class="modal-close" onclick="closeModal('svc-modal')">✕</button></div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:1rem">
+        <div class="field"><label>اسم الخدمة <span class="req">*</span></label><input type="text" id="ns-name"></div>
+        <div style="display:grid;grid-template-columns:80px 1fr;gap:10px">
+          <div class="field"><label>أيقونة</label><input type="text" id="ns-icon" placeholder="📄" maxlength="2"></div>
+          <div class="field"><label>وصف قصير</label><input type="text" id="ns-desc"></div>
+        </div>
+        <div class="field"><label>الوثائق المطلوبة <span style="font-weight:400;color:var(--muted)">(كل وثيقة في سطر)</span></label><textarea id="ns-docs" placeholder="بطاقة الهوية&#10;صورتان شمسيتان"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('svc-modal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveSvc()">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ كلمة المرور — غيّرها هنا ══
+const ADMIN_PASSWORD = 'admin2026';
+// ════════════════════════════════
+
+const SL={new:{t:'جديد',c:'badge-new'},review:{t:'قيد المراجعة',c:'badge-review'},done:{t:'مكتمل',c:'badge-done'},rejected:{t:'مرفوض',c:'badge-rejected'}};
+
+let curFlt='all';
+let editAgentId=null;
+
+// ── بيانات تجريبية
+let AGENTS=[
+  {id:1, name:'سارة بن عمر',    role:'موظف استقبال', phone:'0551 11 22 33'},
+  {id:2, name:'محمد بوزيد',      role:'مسؤول الملفات', phone:'0661 44 55 66'},
+  {id:3, name:'نورة حمداني',     role:'موظف متابعة',  phone:'0771 77 88 99'},
+];
+
+let REQUESTS=[
+  {id:'ADM-2026-4832',nameAr:'فاطمة الزهراء بوعلام',nameFr:'Fatma Boualam',nin:'100198001012345X',service:'رخصة السياقة', date:'22 أبريل 2026',status:'review',phone:'0551 23 45 67',notes:'',agentId:2},
+  {id:'ADM-2026-7741',nameAr:'كريم مسعود',          nameFr:'Karim Massoud', nin:'1001990030156789',service:'شهادة ميلاد',  date:'18 أبريل 2026',status:'done',  phone:'0661 98 76 54',notes:'',agentId:1},
+  {id:'ADM-2026-5523',nameAr:'أمينة بن علي',         nameFr:'Amina Ben Ali', nin:'2001995050298765',service:'بطاقة وطنية', date:'25 أبريل 2026',status:'new',   phone:'0771 55 33 22',notes:'استعجال — سفر',agentId:null},
+  {id:'ADM-2026-6610',nameAr:'يوسف قاسمي',           nameFr:'Youssef Gassemi',nin:'1001988071134567',service:'سجل تجاري',  date:'24 أبريل 2026',status:'new',   phone:'0550 11 22 33',notes:'',agentId:null},
+  {id:'ADM-2026-3391',nameAr:'نور الهدى زيدان',      nameFr:'Nour Zidane',   nin:'2001993020187654',service:'شهادة إقامة',date:'15 أبريل 2026',status:'rejected',phone:'0660 44 55 66',notes:'وثيقة الإيجار منتهية',agentId:3},
+  {id:'ADM-2026-2284',nameAr:'إبراهيم حداد',         nameFr:'Ibrahim Haddad',nin:'1001985090267891',service:'تصديق شهادة',date:'20 أبريل 2026',status:'done',  phone:'0770 77 88 99',notes:'',agentId:1},
+];
+
+let SERVICES=[
+  {id:1,icon:'📄',name:'شهادة ميلاد',  desc:'استخراج من الحالة المدنية',docs:['بطاقة الهوية','دفتر العائلة','استمارة الطلب']},
+  {id:2,icon:'🪪',name:'بطاقة وطنية',  desc:'تجديد أو استخراج أولي',   docs:['البطاقة القديمة','صورتان شمسيتان','شهادة إقامة']},
+  {id:3,icon:'🚗',name:'رخصة السياقة', desc:'تجديد أو أول مرة',         docs:['الرخصة الحالية','شهادة طبية','بطاقة الهوية','وصل الرسوم']},
+  {id:4,icon:'🏠',name:'شهادة إقامة',  desc:'إثبات محل السكن',          docs:['بطاقة الهوية','عقد الإيجار']},
+  {id:5,icon:'📋',name:'سجل تجاري',    desc:'فتح نشاط تجاري جديد',     docs:['بطاقة الهوية','صورة شمسية','عقد الإيجار التجاري']},
+  {id:6,icon:'🎓',name:'تصديق شهادة', desc:'شهادات جامعية أو مهنية',  docs:['الشهادة الأصلية','نسختان مصورتان','بطاقة الهوية']},
+];
+
+// ══ Login ══
+function doLogin(){
+  const v=document.getElementById('pwd-input').value;
+  if(v===ADMIN_PASSWORD){
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('admin-main').classList.add('show');
+    renderAll();
+  } else {
+    document.getElementById('login-err').style.display='block';
+    document.getElementById('pwd-input').value='';
+    document.getElementById('pwd-input').focus();
+  }
+}
+function doLogout(){
+  document.getElementById('admin-main').classList.remove('show');
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('pwd-input').value='';
+  document.getElementById('login-err').style.display='none';
+}
+document.getElementById('pwd-input').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
+// ══ Render all ══
+function renderAll(){ renderStats(); renderTable(); renderAgents(); renderServices(); }
+
+// ══ Stats ══
+function renderStats(){
+  const c={new:0,review:0,done:0,rejected:0};
+  REQUESTS.forEach(r=>c[r.status]++);
+  document.getElementById('stats-bar').innerHTML=`
+    <div class="stat-card c-blue"><div class="stat-num">${REQUESTS.length}</div><div class="stat-lbl">إجمالي الطلبات</div></div>
+    <div class="stat-card c-warn"><div class="stat-num">${c.new+c.review}</div><div class="stat-lbl">قيد المعالجة</div></div>
+    <div class="stat-card c-green"><div class="stat-num">${c.done}</div><div class="stat-lbl">مكتملة</div></div>
+    <div class="stat-card c-red"><div class="stat-num">${c.rejected}</div><div class="stat-lbl">مرفوضة</div></div>`;
+}
+
+// ══ Table ══
+function setFlt(btn){
+  curFlt=btn.dataset.f;
+  document.querySelectorAll('.flt').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+function agentName(id){ const a=AGENTS.find(x=>x.id===id); return a?a.name:null; }
+function renderTable(){
+  const q=(document.getElementById('srch')||{}).value||'';
+  const rows=REQUESTS.filter(r=>{
+    const mf=curFlt==='all'||r.status===curFlt;
+    const ms=!q||r.nameAr.includes(q)||r.nameFr.toLowerCase().includes(q.toLowerCase())||r.id.toLowerCase().includes(q.toLowerCase())||r.service.includes(q);
+    return mf&&ms;
+  });
+  const tbl=document.getElementById('req-table');
+  if(!rows.length){tbl.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">لا توجد نتائج</td></tr>';return;}
+  tbl.innerHTML=`<thead><tr>
+    <th>الزبون</th><th>الخدمة</th><th>التاريخ</th><th>الحالة</th><th>الموظف المكلف</th><th>إجراءات</th>
+  </tr></thead><tbody>`+
+  rows.map(r=>{
+    const an=agentName(r.agentId);
+    return `<tr>
+      <td><div class="req-name">${r.nameAr}</div><div class="req-ref">${r.id}</div></td>
+      <td>${r.service}</td>
+      <td style="font-size:12px;color:var(--muted)">${r.date}</td>
+      <td><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></td>
+      <td><span class="agent-chip ${an?'':'none'}">${an?'👤 '+an:'— غير مُعيَّن'}</span></td>
+      <td style="white-space:nowrap">
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
+          ${r.status!=='done'&&r.status!=='rejected'?`<button class="btn btn-primary btn-sm" onclick="quickDone('${r.id}')">✓</button>`:''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('')+'</tbody>';
+}
+
+// ══ Request modal ══
+function openReq(id){
+  const r=REQUESTS.find(x=>x.id===id); if(!r)return;
+  const agentOptions=AGENTS.map(a=>`<option value="${a.id}" ${r.agentId===a.id?'selected':''}>${a.name} — ${a.role}</option>`).join('');
+  document.getElementById('modal-title').textContent=r.service+' · '+r.id;
+  document.getElementById('modal-body').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem">
+      <div><div class="text-sm text-muted">الاسم بالعربية</div><div style="font-weight:600">${r.nameAr}</div></div>
+      <div><div class="text-sm text-muted">Nom en français</div><div style="font-weight:600;direction:ltr">${r.nameFr}</div></div>
+      <div><div class="text-sm text-muted">NIN</div><div style="font-weight:600;direction:ltr;letter-spacing:1px">${r.nin}</div></div>
+      <div><div class="text-sm text-muted">الهاتف</div><div style="font-weight:600">${r.phone}</div></div>
+      <div><div class="text-sm text-muted">تاريخ التقديم</div><div style="font-weight:600">${r.date}</div></div>
+      <div><div class="text-sm text-muted">الحالة</div><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></div>
+    </div>
+    ${r.notes?`<div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:.75rem;font-size:13px;margin-bottom:1.25rem"><strong>ملاحظات:</strong> ${r.notes}</div>`:''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div class="field">
+        <label>تعيين موظف</label>
+        <select id="modal-agent">
+          <option value="">— غير مُعيَّن —</option>
+          ${agentOptions}
+        </select>
+      </div>
+      <div class="field">
+        <label>تغيير الحالة</label>
+        <select id="modal-status">
+          <option value="new"      ${r.status==='new'?'selected':''}>جديد</option>
+          <option value="review"   ${r.status==='review'?'selected':''}>قيد المراجعة</option>
+          <option value="done"     ${r.status==='done'?'selected':''}>مكتمل</option>
+          <option value="rejected" ${r.status==='rejected'?'selected':''}>مرفوض</option>
+        </select>
+      </div>
+    </div>`;
+  document.getElementById('modal-foot').innerHTML=`
+    <button class="btn btn-ghost" onclick="closeModal('req-modal')">إغلاق</button>
+    <button class="btn btn-primary" onclick="saveReq('${id}')">حفظ التغييرات</button>`;
+  document.getElementById('req-modal').classList.add('show');
+}
+function saveReq(id){
+  const st=document.getElementById('modal-status').value;
+  const ag=document.getElementById('modal-agent').value;
+  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:st,agentId:ag?parseInt(ag):null}:r);
+  closeModal('req-modal'); renderStats(); renderTable();
+}
+function quickDone(id){REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:'done'}:r);renderStats();renderTable();}
+
+// ══ Agents ══
+function renderAgents(){
+  const el=document.getElementById('agents-list');
+  if(!AGENTS.length){el.innerHTML='<div style="text-align:center;color:var(--muted);padding:2rem">لا يوجد موظفون بعد</div>';return;}
+  el.innerHTML=AGENTS.map(a=>{
+    const count=REQUESTS.filter(r=>r.agentId===a.id).length;
+    return `<div class="agent-row">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="agent-avatar">${a.name.charAt(0)}</div>
+        <div>
+          <div style="font-weight:600;font-size:14px">${a.name}</div>
+          <div style="font-size:12px;color:var(--muted)">${a.role} · ${a.phone}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12px;color:var(--muted)">${count} طلب مُكلَّف</span>
+        <button class="btn btn-ghost btn-sm" onclick="openEditAgent(${a.id})">تعديل</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAgent(${a.id})">حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openAddAgent(){
+  editAgentId=null;
+  document.getElementById('agent-modal-title').textContent='إضافة موظف';
+  ['ag-name','ag-role','ag-phone'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('agent-modal').classList.add('show');
+}
+function openEditAgent(id){
+  const a=AGENTS.find(x=>x.id===id); if(!a)return;
+  editAgentId=id;
+  document.getElementById('agent-modal-title').textContent='تعديل بيانات الموظف';
+  document.getElementById('ag-name').value=a.name;
+  document.getElementById('ag-role').value=a.role;
+  document.getElementById('ag-phone').value=a.phone;
+  document.getElementById('agent-modal').classList.add('show');
+}
+function saveAgent(){
+  const name=document.getElementById('ag-name').value.trim();
+  if(!name){alert('يرجى إدخال اسم الموظف');return;}
+  if(editAgentId){
+    AGENTS=AGENTS.map(a=>a.id===editAgentId?{...a,name,role:document.getElementById('ag-role').value,phone:document.getElementById('ag-phone').value}:a);
+  } else {
+    AGENTS.push({id:Date.now(),name,role:document.getElementById('ag-role').value,phone:document.getElementById('ag-phone').value});
+  }
+  closeModal('agent-modal'); renderAgents(); renderTable();
+}
+function deleteAgent(id){
+  if(!confirm('هل تريد حذف هذا الموظف؟'))return;
+  AGENTS=AGENTS.filter(a=>a.id!==id);
+  REQUESTS=REQUESTS.map(r=>r.agentId===id?{...r,agentId:null}:r);
+  renderAgents(); renderTable();
+}
+
+// ══ Services ══
+function renderServices(){
+  document.getElementById('svc-list').innerHTML=SERVICES.map(s=>`
+    <div class="svc-row">
+      <div class="svc-info">
+        <span style="font-size:22px">${s.icon}</span>
+        <div><div style="font-weight:600;font-size:14px">${s.name}</div><div style="font-size:12px;color:var(--muted)">${s.docs.length} وثائق · ${s.desc}</div></div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="deleteSvc(${s.id})">حذف</button>
+      </div>
+    </div>`).join('');
+}
+function openAddSvc(){
+  ['ns-name','ns-icon','ns-desc','ns-docs'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('svc-modal').classList.add('show');
+}
+function saveSvc(){
+  const name=document.getElementById('ns-name').value.trim();
+  if(!name){alert('يرجى إدخال اسم الخدمة');return;}
+  SERVICES.push({id:Date.now(),icon:document.getElementById('ns-icon').value||'📄',name,desc:document.getElementById('ns-desc').value,docs:document.getElementById('ns-docs').value.split('\n').map(d=>d.trim()).filter(Boolean)});
+  closeModal('svc-modal'); renderServices();
+}
+function deleteSvc(id){if(!confirm('حذف الخدمة؟'))return;SERVICES=SERVICES.filter(s=>s.id!==id);renderServices();}
+
+// ══ Charts ══
+function renderCharts(){
+  // by service
+  const byS={};REQUESTS.forEach(r=>{byS[r.service]=(byS[r.service]||0)+1;});
+  const maxS=Math.max(1,...Object.values(byS));
+  document.getElementById('chart-svc').innerHTML=Object.entries(byS).map(([k,v])=>
+    `<div class="bar-row"><div class="bar-lbl"><span>${k}</span><strong>${v}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${v/maxS*100}%;background:var(--accent)"></div></div></div>`).join('');
+  // by status
+  const byT={new:0,review:0,done:0,rejected:0};REQUESTS.forEach(r=>byT[r.status]++);
+  const maxT=Math.max(1,...Object.values(byT));
+  const cols={new:'#1a4d8f',review:'#d4a017',done:'#1a6b4a',rejected:'#c0392b'};
+  document.getElementById('chart-st').innerHTML=Object.entries(byT).map(([k,v])=>
+    `<div class="bar-row"><div class="bar-lbl"><span>${SL[k].t}</span><strong>${v}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${v/maxT*100}%;background:${cols[k]}"></div></div></div>`).join('');
+  // by agent
+  const byA={};
+  REQUESTS.forEach(r=>{
+    const name=r.agentId?agentName(r.agentId):'غير مُعيَّن';
+    byA[name]=(byA[name]||0)+1;
+  });
+  const maxA=Math.max(1,...Object.values(byA));
+  document.getElementById('chart-agent').innerHTML=Object.entries(byA).map(([k,v])=>
+    `<div class="bar-row"><div class="bar-lbl"><span>${k}</span><strong>${v}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${v/maxA*100}%;background:#6b8fd4"></div></div></div>`).join('');
+}
+
+// ══ Tabs ══
+function switchTab(name,btn){
+  document.querySelectorAll('.tc').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tc-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='stats')renderCharts();
+}
+
+// ══ Helpers ══
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+</script>
+</body>
+</html>

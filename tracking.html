@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>متابعة الطلب — خدماتي الإدارية</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.search-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:2rem;margin-bottom:1.5rem;text-align:center}
+.search-box h1{font-size:18px;font-weight:700;margin-bottom:.5rem}
+.search-box p{font-size:13px;color:var(--muted);margin-bottom:1.5rem}
+.search-row{display:flex;gap:10px;max-width:440px;margin:0 auto}
+.search-row input{flex:1;direction:ltr;text-align:center;font-size:14px;font-weight:600;letter-spacing:1px}
+
+.result-box{display:none}
+.result-box.show{display:block;animation:fadeIn .3s ease}
+
+.status-header{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.5rem;margin-bottom:1rem}
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;margin-top:.75rem}
+.meta-lbl{font-size:11px;color:var(--muted)}
+.meta-val{font-size:13px;font-weight:600}
+
+.timeline{padding:.5rem 0}
+.tl-item{display:flex;gap:14px;padding-bottom:1.25rem;position:relative}
+.tl-item:last-child{padding-bottom:0}
+.tl-left{display:flex;flex-direction:column;align-items:center;width:14px;flex-shrink:0}
+.tl-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.tl-dot.done   {background:var(--accent);border:2px solid var(--accent)}
+.tl-dot.active {background:#fff;border:2px solid #d4a017;box-shadow:0 0 0 3px #fdf6ec}
+.tl-dot.pending{background:var(--surface);border:2px solid var(--border-strong)}
+.tl-vline{flex:1;width:2px;background:var(--border);margin-top:4px}
+.tl-item:last-child .tl-vline{display:none}
+.tl-title{font-size:13px;font-weight:600;margin-bottom:2px}
+.tl-desc{font-size:12px;color:var(--muted)}
+.tl-date{font-size:11px;color:var(--muted);margin-top:3px}
+.tl-pending .tl-title{color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <a class="logo" href="index.html">
+    <div class="logo-mark">⚖</div>
+    <div><div class="logo-name">خدماتي الإدارية</div><div class="logo-sub">بلدية النموذج</div></div>
+  </a>
+  <nav class="header-nav">
+    <a href="index.html">تقديم طلب</a>
+    <a href="tracking.html" class="active">متابعة طلبي</a>
+  </nav>
+</header>
+
+<div class="page-wrap">
+
+  <div class="search-box">
+    <h1>🔍 متابعة حالة طلبك</h1>
+    <p>أدخل رقم المرجع الذي استلمته عند تقديم الطلب</p>
+    <div class="search-row">
+      <input type="text" id="ref-input" placeholder="ADM-2026-XXXX" onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="btn btn-primary" onclick="doSearch()">بحث</button>
+    </div>
+    <div style="margin-top:.75rem;font-size:11px;color:var(--muted)">
+      للتجربة: <strong>ADM-2026-4832</strong> أو <strong>ADM-2026-7741</strong>
+    </div>
+  </div>
+
+  <div class="result-box" id="result-box"></div>
+
+</div>
+
+<script>
+const SL={new:{t:'جديد',c:'badge-new'},review:{t:'قيد المراجعة',c:'badge-review'},done:{t:'مكتمل',c:'badge-done'},rejected:{t:'مرفوض',c:'badge-rejected'}};
+
+const MOCK={
+  'ADM-2026-4832':{
+    service:'تجديد رخصة السياقة',nameAr:'فاطمة الزهراء بوعلام',
+    submitted:'22 أبريل 2026',status:'review',
+    steps:[
+      {title:'استلام الطلب',      desc:'تم استلام طلبك وتسجيله في النظام',          date:'22 أبريل 2026',state:'done'},
+      {title:'مراجعة الوثائق',    desc:'يقوم الموظف بالتحقق من صحة الوثائق المرفوعة',date:'24 أبريل 2026',state:'active'},
+      {title:'المعالجة الإدارية', desc:'إتمام الإجراءات الداخلية',                   date:'',              state:'pending'},
+      {title:'إشعار بالنتيجة',    desc:'ستصلك رسالة عند الانتهاء',                   date:'',              state:'pending'},
+    ]
+  },
+  'ADM-2026-7741':{
+    service:'شهادة ميلاد',nameAr:'كريم مسعود',
+    submitted:'18 أبريل 2026',status:'done',
+    steps:[
+      {title:'استلام الطلب',      desc:'تم استلام طلبك',                         date:'18 أبريل 2026',state:'done'},
+      {title:'مراجعة الوثائق',    desc:'تم التحقق من جميع الوثائق بنجاح',        date:'19 أبريل 2026',state:'done'},
+      {title:'المعالجة الإدارية', desc:'تمت المعالجة بنجاح',                     date:'21 أبريل 2026',state:'done'},
+      {title:'مكتمل ✓',           desc:'يمكنك استلام وثيقتك من المكتب',         date:'23 أبريل 2026',state:'done'},
+    ]
+  }
+};
+
+function doSearch(){
+  const ref=document.getElementById('ref-input').value.trim().toUpperCase();
+  const box=document.getElementById('result-box');
+  box.classList.remove('show');
+  if(!ref){alert('يرجى إدخال رقم المرجع');return;}
+  const r=MOCK[ref];
+  if(!r){
+    box.innerHTML=`<div style="text-align:center;padding:2rem;color:var(--muted)">
+      <div style="font-size:32px;margin-bottom:8px">🔎</div>
+      <div style="font-weight:600;margin-bottom:4px">لم يُعثر على هذا الرقم</div>
+      <div style="font-size:12px">تأكد من الرقم أو تواصل مع المكتب</div>
+    </div>`;
+    box.classList.add('show'); return;
+  }
+  const st=SL[r.status];
+  const tl=r.steps.map(s=>`
+    <div class="tl-item ${s.state==='pending'?'tl-pending':''}">
+      <div class="tl-left"><div class="tl-dot ${s.state}"></div><div class="tl-vline"></div></div>
+      <div>
+        <div class="tl-title">${s.title}</div>
+        <div class="tl-desc">${s.desc}</div>
+        ${s.date?`<div class="tl-date">📅 ${s.date}</div>`:''}
+      </div>
+    </div>`).join('');
+
+  box.innerHTML=`
+    <div class="status-header">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <div style="font-size:17px;font-weight:700">${r.service}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:.5rem;direction:ltr;display:inline-block">${ref}</div>
+        </div>
+        <span class="badge ${st.c}">${st.t}</span>
+      </div>
+      <div class="meta-grid">
+        <div><div class="meta-lbl">الاسم</div><div class="meta-val">${r.nameAr}</div></div>
+        <div><div class="meta-lbl">تاريخ التقديم</div><div class="meta-val">${r.submitted}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>مسار الطلب</h2></div>
+      <div class="card-body"><div class="timeline">${tl}</div></div>
+    </div>
+    ${r.status==='done'?`<div style="background:var(--accent-light);border:1px solid var(--accent-border);border-radius:var(--radius-sm);padding:1rem 1.25rem;font-size:13px;color:var(--accent)">✅ <strong>طلبك مكتمل!</strong> توجّه إلى المكتب لاستلام وثيقتك. أحضر معك بطاقة الهوية.</div>`:''}
+    ${r.status==='rejected'?`<div style="background:var(--danger-light);border:1px solid #f0b0a8;border-radius:var(--radius-sm);padding:1rem 1.25rem;font-size:13px;color:var(--danger)">❌ <strong>تعذّر إتمام الطلب.</strong> تواصل مع المكتب لمعرفة التفاصيل.</div>`:''}
+  `;
+  box.classList.add('show');
+}
+
+// Auto-fill from URL param (from QR code)
+window.addEventListener('DOMContentLoaded',()=>{
+  const p=new URLSearchParams(window.location.search).get('ref');
+  if(p){document.getElementById('ref-input').value=p;doSearch();}
+});
+</script>
+</body>
+</html>
