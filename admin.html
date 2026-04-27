@@ -246,14 +246,31 @@ let AGENTS=[
   {id:3, name:'نورة حمداني',     role:'موظف متابعة',  phone:'0771 77 88 99'},
 ];
 
-let REQUESTS=[
-  {id:'ADM-2026-4832',nameAr:'فاطمة الزهراء بوعلام',nameFr:'Fatma Boualam',nin:'100198001012345X',service:'رخصة السياقة', date:'22 أبريل 2026',status:'review',phone:'0551 23 45 67',notes:'',agentId:2},
-  {id:'ADM-2026-7741',nameAr:'كريم مسعود',          nameFr:'Karim Massoud', nin:'1001990030156789',service:'شهادة ميلاد',  date:'18 أبريل 2026',status:'done',  phone:'0661 98 76 54',notes:'',agentId:1},
-  {id:'ADM-2026-5523',nameAr:'أمينة بن علي',         nameFr:'Amina Ben Ali', nin:'2001995050298765',service:'بطاقة وطنية', date:'25 أبريل 2026',status:'new',   phone:'0771 55 33 22',notes:'استعجال — سفر',agentId:null},
-  {id:'ADM-2026-6610',nameAr:'يوسف قاسمي',           nameFr:'Youssef Gassemi',nin:'1001988071134567',service:'سجل تجاري',  date:'24 أبريل 2026',status:'new',   phone:'0550 11 22 33',notes:'',agentId:null},
-  {id:'ADM-2026-3391',nameAr:'نور الهدى زيدان',      nameFr:'Nour Zidane',   nin:'2001993020187654',service:'شهادة إقامة',date:'15 أبريل 2026',status:'rejected',phone:'0660 44 55 66',notes:'وثيقة الإيجار منتهية',agentId:3},
-  {id:'ADM-2026-2284',nameAr:'إبراهيم حداد',         nameFr:'Ibrahim Haddad',nin:'1001985090267891',service:'تصديق شهادة',date:'20 أبريل 2026',status:'done',  phone:'0770 77 88 99',notes:'',agentId:1},
-];
+// ── الطلبات: تُقرأ من localStorage (تأتي من صفحة الزبون)
+function loadRequests(){
+  return JSON.parse(localStorage.getItem('requests')||'[]').map(r=>({
+    id:        r.id,
+    nameAr:    r.name_ar   || '',
+    nameFr:    r.name_fr   || '',
+    nin:       r.nin       || '',
+    service:   r.service_name || '',
+    date:      r.date_display || r.created_at?.slice(0,10) || '',
+    status:    r.status    || 'new',
+    phone:     r.phone     || '',
+    notes:     r.notes     || '',
+    agentId:   r.agent_id  || null,
+  }));
+}
+function saveRequests(list){
+  const raw=list.map(r=>({
+    id: r.id, name_ar: r.nameAr, name_fr: r.nameFr,
+    nin: r.nin, service_name: r.service, date_display: r.date,
+    status: r.status, phone: r.phone, notes: r.notes,
+    agent_id: r.agentId,
+  }));
+  localStorage.setItem('requests', JSON.stringify(raw));
+}
+let REQUESTS = loadRequests();
 
 let SERVICES=[
   {id:1,icon:'📄',name:'شهادة ميلاد',  desc:'استخراج من الحالة المدنية',docs:['بطاقة الهوية','دفتر العائلة','استمارة الطلب']},
@@ -270,6 +287,7 @@ function doLogin(){
   if(v===ADMIN_PASSWORD){
     document.getElementById('login-screen').style.display='none';
     document.getElementById('admin-main').classList.add('show');
+    REQUESTS=loadRequests(); // تحديث من localStorage
     renderAll();
   } else {
     document.getElementById('login-err').style.display='block';
@@ -379,9 +397,10 @@ function saveReq(id){
   const st=document.getElementById('modal-status').value;
   const ag=document.getElementById('modal-agent').value;
   REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:st,agentId:ag?parseInt(ag):null}:r);
+  saveRequests(REQUESTS);
   closeModal('req-modal'); renderStats(); renderTable();
 }
-function quickDone(id){REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:'done'}:r);renderStats();renderTable();}
+function quickDone(id){REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:'done'}:r);saveRequests(REQUESTS);renderStats();renderTable();}
 
 // ══ Agents ══
 function renderAgents(){

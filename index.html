@@ -202,9 +202,9 @@
         <div id="upload-fields" style="display:flex;flex-direction:column;gap:1.1rem"></div>
       </div>
     </div>
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="goTo(2)">→ رجوع</button>
-      <button class="btn btn-primary" onclick="goTo(4)">إرسال الطلب ←</button>
+    <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px" onclick="submitRequest()">✓ إرسال الطلب</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="goTo(2)">→ رجوع</button>
     </div>
   </div>
 
@@ -322,7 +322,6 @@ function goTo(n){
     else sn.textContent=i;
   }
   if(n===3) buildUploads();
-  if(n===4) fillConfirm();
   cur=n;
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -386,20 +385,48 @@ function fp(i,inp){
   document.getElementById('ul-'+i).textContent='✓  '+inp.files[0].name;
 }
 
-function fillConfirm(){
+function submitRequest(){
   const ref='ADM-2026-'+(1000+Math.floor(Math.random()*9000));
-  document.getElementById('ref-num').textContent=ref;
-  document.getElementById('sum-svc').textContent   =sel?sel.name:'—';
-  document.getElementById('sum-name').textContent  =document.getElementById('f-name-ar').value||'—';
-  document.getElementById('sum-namefr').textContent=document.getElementById('f-name-fr').value||'—';
-  document.getElementById('sum-nin').textContent   =document.getElementById('f-nin').value||'—';
-  document.getElementById('sum-phone').textContent =document.getElementById('f-phone').value||'—';
-  document.getElementById('sum-date').textContent  =new Date().toLocaleDateString('ar-DZ');
+  const now=new Date();
 
-  // QR لرقم المرجع
+  // ── بيانات الطلب
+  const request={
+    id: ref,
+    service_name: sel?sel.name:'',
+    name_ar:  document.getElementById('f-name-ar').value.trim(),
+    name_fr:  document.getElementById('f-name-fr').value.trim(),
+    nin:      document.getElementById('f-nin').value.trim(),
+    phone:    document.getElementById('f-phone').value.trim(),
+    address:  document.getElementById('f-address').value.trim(),
+    email:    document.getElementById('f-email').value.trim(),
+    purpose:  document.getElementById('f-purpose').value,
+    notes:    document.getElementById('f-notes').value.trim(),
+    status:   'new',
+    agent_id: null,
+    created_at: now.toISOString(),
+    date_display: now.toLocaleDateString('ar-DZ'),
+  };
+
+  // ── حفظ في localStorage (مؤقت — سيُستبدل بـ Supabase)
+  const existing = JSON.parse(localStorage.getItem('requests')||'[]');
+  existing.unshift(request);
+  localStorage.setItem('requests', JSON.stringify(existing));
+
+  // ── تحديث صفحة التأكيد
+  document.getElementById('ref-num').textContent      = ref;
+  document.getElementById('sum-svc').textContent      = request.service_name||'—';
+  document.getElementById('sum-name').textContent     = request.name_ar||'—';
+  document.getElementById('sum-namefr').textContent   = request.name_fr||'—';
+  document.getElementById('sum-nin').textContent      = request.nin||'—';
+  document.getElementById('sum-phone').textContent    = request.phone||'—';
+  document.getElementById('sum-date').textContent     = request.date_display;
+
+  // ── QR للمتابعة
   document.getElementById('qrcode').innerHTML='';
   const trackURL=window.location.origin+window.location.pathname.replace('index.html','')+'tracking.html?ref='+ref;
   new QRCode(document.getElementById('qrcode'),{text:trackURL,width:140,height:140,colorDark:'#1a6b4a',colorLight:'#ffffff'});
+
+  goTo(4);
 }
 
 function restartApp(){
