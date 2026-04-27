@@ -113,6 +113,7 @@
     </a>
     <div style="display:flex;align-items:center;gap:10px">
       <a href="index.html" style="font-size:12px;color:var(--muted);text-decoration:none;padding:5px 12px;border:1px solid var(--border);border-radius:20px">← صفحة الزبون</a>
+      <button id="refresh-btn" onclick="refreshData()" class="btn btn-ghost btn-sm">🔄 تحديث</button>
       <button onclick="doLogout()" class="btn btn-danger btn-sm">خروج</button>
     </div>
   </header>
@@ -229,48 +230,22 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ══ كلمة المرور — غيّرها هنا ══
 const ADMIN_PASSWORD = 'admin2026';
 // ════════════════════════════════
 
+const SB_URL = 'https://lfazaqaovdfikoyzhozw.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmYXphcWFvdmRmaWtveXpob3p3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDEzODYsImV4cCI6MjA5Mjc3NzM4Nn0.HstENezbz61oRgVvAxeUg6_YI4lW8qCwdeONR3uyhBM';
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
 const SL={new:{t:'جديد',c:'badge-new'},review:{t:'قيد المراجعة',c:'badge-review'},done:{t:'مكتمل',c:'badge-done'},rejected:{t:'مرفوض',c:'badge-rejected'}};
 
 let curFlt='all';
 let editAgentId=null;
-
-// ── بيانات تجريبية
-let AGENTS=[
-  {id:1, name:'سارة بن عمر',    role:'موظف استقبال', phone:'0551 11 22 33'},
-  {id:2, name:'محمد بوزيد',      role:'مسؤول الملفات', phone:'0661 44 55 66'},
-  {id:3, name:'نورة حمداني',     role:'موظف متابعة',  phone:'0771 77 88 99'},
-];
-
-// ── الطلبات: تُقرأ من localStorage (تأتي من صفحة الزبون)
-function loadRequests(){
-  return JSON.parse(localStorage.getItem('requests')||'[]').map(r=>({
-    id:        r.id,
-    nameAr:    r.name_ar   || '',
-    nameFr:    r.name_fr   || '',
-    nin:       r.nin       || '',
-    service:   r.service_name || '',
-    date:      r.date_display || r.created_at?.slice(0,10) || '',
-    status:    r.status    || 'new',
-    phone:     r.phone     || '',
-    notes:     r.notes     || '',
-    agentId:   r.agent_id  || null,
-  }));
-}
-function saveRequests(list){
-  const raw=list.map(r=>({
-    id: r.id, name_ar: r.nameAr, name_fr: r.nameFr,
-    nin: r.nin, service_name: r.service, date_display: r.date,
-    status: r.status, phone: r.phone, notes: r.notes,
-    agent_id: r.agentId,
-  }));
-  localStorage.setItem('requests', JSON.stringify(raw));
-}
-let REQUESTS = loadRequests();
+let AGENTS=[];
+let REQUESTS=[];
 
 let SERVICES=[
   {id:1,icon:'📄',name:'شهادة ميلاد',  desc:'استخراج من الحالة المدنية',docs:['بطاقة الهوية','دفتر العائلة','استمارة الطلب']},
@@ -281,13 +256,41 @@ let SERVICES=[
   {id:6,icon:'🎓',name:'تصديق شهادة', desc:'شهادات جامعية أو مهنية',  docs:['الشهادة الأصلية','نسختان مصورتان','بطاقة الهوية']},
 ];
 
+// ══ تحميل البيانات من Supabase ══
+async function loadFromSupabase(){
+  const [reqRes, agRes] = await Promise.all([
+    sb.from('requests').select('*').order('created_at',{ascending:false}),
+    sb.from('agents').select('*').order('id')
+  ]);
+  if(reqRes.data) REQUESTS = reqRes.data.map(r=>({
+    id:      r.id,
+    nameAr:  r.name_ar  ||'',
+    nameFr:  r.name_fr  ||'',
+    nin:     r.nin      ||'',
+    service: r.service_name||'',
+    date:    r.created_at? new Date(r.created_at).toLocaleDateString('ar-DZ') : '',
+    status:  r.status   ||'new',
+    phone:   r.phone    ||'',
+    notes:   r.notes    ||'',
+    agentId: r.agent_id ||null,
+  }));
+  if(agRes.data) AGENTS = agRes.data.map(a=>({
+    id:    a.id,
+    name:  a.name  ||'',
+    role:  a.role  ||'',
+    phone: a.phone ||'',
+  }));
+}
+
 // ══ Login ══
-function doLogin(){
+async function doLogin(){
   const v=document.getElementById('pwd-input').value;
   if(v===ADMIN_PASSWORD){
+    const btn=document.querySelector('.login-card .btn-primary');
+    btn.textContent='جاري التحميل...'; btn.disabled=true;
+    await loadFromSupabase();
     document.getElementById('login-screen').style.display='none';
     document.getElementById('admin-main').classList.add('show');
-    REQUESTS=loadRequests(); // تحديث من localStorage
     renderAll();
   } else {
     document.getElementById('login-err').style.display='block';
@@ -298,6 +301,8 @@ function doLogin(){
 function doLogout(){
   document.getElementById('admin-main').classList.remove('show');
   document.getElementById('login-screen').style.display='flex';
+  const btn=document.querySelector('.login-card .btn-primary');
+  btn.textContent='دخول'; btn.disabled=false;
   document.getElementById('pwd-input').value='';
   document.getElementById('login-err').style.display='none';
 }
@@ -305,6 +310,23 @@ document.getElementById('pwd-input').addEventListener('keydown',e=>{if(e.key==='
 
 // ══ Render all ══
 function renderAll(){ renderStats(); renderTable(); renderAgents(); renderServices(); }
+
+// زر تحديث
+async function refreshData(){
+  const btn=document.getElementById('refresh-btn');
+  if(btn){btn.textContent='جاري التحديث...';btn.disabled=true;}
+  await loadFromSupabase();
+  renderAll();
+  if(btn){btn.textContent='🔄 تحديث';btn.disabled=false;}
+}
+
+function onAgentChange(){
+  const ag=document.getElementById('modal-agent').value;
+  const st=document.getElementById('modal-status');
+  const hint=document.getElementById('agent-hint');
+  if(ag&&st.value==='new'){st.value='review';hint.style.display='block';}
+  else hint.style.display='none';
+}
 
 // ══ Stats ══
 function renderStats(){
@@ -396,28 +418,23 @@ function openReq(id){
     <button class="btn btn-primary" onclick="saveReq('${id}')">حفظ التغييرات</button>`;
   document.getElementById('req-modal').classList.add('show');
 }
-function onAgentChange(){
-  const ag=document.getElementById('modal-agent').value;
-  const st=document.getElementById('modal-status');
-  const hint=document.getElementById('agent-hint');
-  if(ag && st.value==='new'){
-    st.value='review';
-    hint.style.display='block';
-  } else {
-    hint.style.display='none';
-  }
-}
-
-function saveReq(id){
+async function saveReq(id){
   const st=document.getElementById('modal-status').value;
   const ag=document.getElementById('modal-agent').value;
-  // إذا عُيِّن موظف والحالة لا تزال "جديد" → تحويل تلقائي لـ "قيد المراجعة"
-  const autoStatus = (ag && st==='new') ? 'review' : st;
+  const autoStatus=(ag&&st==='new')?'review':st;
+  const {error}=await sb.from('requests').update({
+    status:   autoStatus,
+    agent_id: ag?parseInt(ag):null
+  }).eq('id',id);
+  if(error){alert('خطأ: '+error.message);return;}
   REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:autoStatus,agentId:ag?parseInt(ag):null}:r);
-  saveRequests(REQUESTS);
   closeModal('req-modal'); renderStats(); renderTable();
 }
-function quickDone(id){REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:'done'}:r);saveRequests(REQUESTS);renderStats();renderTable();}
+async function quickDone(id){
+  await sb.from('requests').update({status:'done'}).eq('id',id);
+  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:'done'}:r);
+  renderStats(); renderTable();
+}
 
 // ══ Agents ══
 function renderAgents(){
@@ -456,18 +473,24 @@ function openEditAgent(id){
   document.getElementById('ag-phone').value=a.phone;
   document.getElementById('agent-modal').classList.add('show');
 }
-function saveAgent(){
+async function saveAgent(){
   const name=document.getElementById('ag-name').value.trim();
   if(!name){alert('يرجى إدخال اسم الموظف');return;}
+  const data={name,role:document.getElementById('ag-role').value,phone:document.getElementById('ag-phone').value};
   if(editAgentId){
-    AGENTS=AGENTS.map(a=>a.id===editAgentId?{...a,name,role:document.getElementById('ag-role').value,phone:document.getElementById('ag-phone').value}:a);
+    const {error}=await sb.from('agents').update(data).eq('id',editAgentId);
+    if(error){alert('خطأ: '+error.message);return;}
+    AGENTS=AGENTS.map(a=>a.id===editAgentId?{...a,...data}:a);
   } else {
-    AGENTS.push({id:Date.now(),name,role:document.getElementById('ag-role').value,phone:document.getElementById('ag-phone').value});
+    const {data:res,error}=await sb.from('agents').insert(data).select().single();
+    if(error){alert('خطأ: '+error.message);return;}
+    AGENTS.push({id:res.id,...data});
   }
   closeModal('agent-modal'); renderAgents(); renderTable();
 }
-function deleteAgent(id){
+async function deleteAgent(id){
   if(!confirm('هل تريد حذف هذا الموظف؟'))return;
+  await sb.from('agents').delete().eq('id',id);
   AGENTS=AGENTS.filter(a=>a.id!==id);
   REQUESTS=REQUESTS.map(r=>r.agentId===id?{...r,agentId:null}:r);
   renderAgents(); renderTable();
