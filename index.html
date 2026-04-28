@@ -307,10 +307,14 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// ══════════════════════════════════════
-// الخدمات — يمكن استبدالها لاحقاً بـ Supabase
-// ══════════════════════════════════════
+// ══ Supabase ══
+const SB_URL = 'https://lfazaqaovdfikoyzhozw.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmYXphcWFvdmRmaWtveXpob3p3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDEzODYsImV4cCI6MjA5Mjc3NzM4Nn0.HstENezbz61oRgVvAxeUg6_YI4lW8qCwdeONR3uyhBM';
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
+// ══ الخدمات ══
 const SERVICES = [
   {id:1,icon:'📄',name:'شهادة ميلاد',  desc:'استخراج من الحالة المدنية',docs:['بطاقة الهوية الوطنية','دفتر العائلة','استمارة الطلب']},
   {id:2,icon:'🪪',name:'بطاقة وطنية',  desc:'تجديد أو استخراج أولي',   docs:['البطاقة القديمة أو شهادة ميلاد','صورتان شمسيتان','شهادة إقامة']},
@@ -449,41 +453,48 @@ function fp(i,inp){
   document.getElementById('ul-'+i).textContent='✓  '+inp.files[0].name;
 }
 
-function submitRequest(){
+async function submitRequest(){
   const ref='ADM-2026-'+(1000+Math.floor(Math.random()*9000));
   const now=new Date();
 
-  // ── بيانات الطلب
   const request={
-    id: ref,
+    id:           ref,
     service_name: sel?sel.name:'',
-    name_ar:  document.getElementById('f-name-ar').value.trim(),
-    name_fr:  document.getElementById('f-name-fr').value.trim(),
-    nin:      document.getElementById('f-nin').value.trim(),
-    phone:    document.getElementById('f-phone').value.trim(),
-    address:  document.getElementById('f-address').value.trim(),
-    email:    document.getElementById('f-email').value.trim(),
-    purpose:  document.getElementById('f-purpose').value,
-    notes:    document.getElementById('f-notes').value.trim(),
-    status:   'new',
-    agent_id: null,
-    created_at: now.toISOString(),
-    date_display: now.toLocaleDateString('ar-DZ'),
+    name_ar:      document.getElementById('f-name-ar').value.trim(),
+    name_fr:      document.getElementById('f-name-fr').value.trim(),
+    nin:          document.getElementById('f-nin').value.trim(),
+    phone:        document.getElementById('f-phone').value.trim(),
+    address:      document.getElementById('f-address').value.trim(),
+    email:        document.getElementById('f-email').value.trim(),
+    purpose:      document.getElementById('f-purpose').value,
+    notes:        document.getElementById('f-notes').value.trim(),
+    status:       'new',
+    agent_id:     null,
+    created_at:   now.toISOString(),
   };
 
-  // ── حفظ في localStorage (مؤقت — سيُستبدل بـ Supabase)
-  const existing = JSON.parse(localStorage.getItem('requests')||'[]');
-  existing.unshift(request);
-  localStorage.setItem('requests', JSON.stringify(existing));
+  // ── إرسال إلى Supabase
+  const btn=document.querySelector('#pg35 .btn-primary');
+  btn.disabled=true;
+  btn.textContent='جاري الإرسال...';
+
+  const {error}=await sb.from('requests').insert(request);
+
+  if(error){
+    btn.disabled=false;
+    btn.textContent='✓ تأكيد الإرسال';
+    alert('حدث خطأ: '+error.message);
+    return;
+  }
 
   // ── تحديث صفحة التأكيد
-  document.getElementById('ref-num').textContent      = ref;
-  document.getElementById('sum-svc').textContent      = request.service_name||'—';
-  document.getElementById('sum-name').textContent     = request.name_ar||'—';
-  document.getElementById('sum-namefr').textContent   = request.name_fr||'—';
-  document.getElementById('sum-nin').textContent      = request.nin||'—';
-  document.getElementById('sum-phone').textContent    = request.phone||'—';
-  document.getElementById('sum-date').textContent     = request.date_display;
+  document.getElementById('ref-num').textContent    = ref;
+  document.getElementById('sum-svc').textContent    = request.service_name||'—';
+  document.getElementById('sum-name').textContent   = request.name_ar||'—';
+  document.getElementById('sum-namefr').textContent = request.name_fr||'—';
+  document.getElementById('sum-nin').textContent    = request.nin||'—';
+  document.getElementById('sum-phone').textContent  = request.phone||'—';
+  document.getElementById('sum-date').textContent   = now.toLocaleDateString('ar-DZ');
 
   // ── QR للمتابعة
   document.getElementById('qrcode').innerHTML='';
