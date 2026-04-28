@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="shared.css">
 <!-- QR Code library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<style> 
+<style>
 .service-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 @media(max-width:480px){.service-grid{grid-template-columns:1fr 1fr}}
 .svc-card{border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:1rem;cursor:pointer;transition:all .2s;background:var(--surface);position:relative}
@@ -447,8 +447,11 @@ function buildUploads(){
       </div>`;
   });
 }
+// حفظ الملفات المختارة مؤقتاً
+let uploadedFiles = {};
 function fp(i,inp){
   if(!inp.files[0])return;
+  uploadedFiles[i]=inp.files[0];
   document.getElementById('uz-'+i).classList.add('has-file');
   document.getElementById('ul-'+i).textContent='✓  '+inp.files[0].name;
 }
@@ -457,6 +460,27 @@ async function submitRequest(){
   const ref='ADM-2026-'+(1000+Math.floor(Math.random()*9000));
   const now=new Date();
 
+  const btn=document.querySelector('#pg35 .btn-primary');
+  btn.disabled=true;
+
+  // ── 1. رفع الملفات إلى Supabase Storage
+  const fileUrls=[];
+  const fileKeys=Object.keys(uploadedFiles);
+  for(let i=0;i<fileKeys.length;i++){
+    const file=uploadedFiles[fileKeys[i]];
+    const ext=file.name.split('.').pop();
+    const path=`${ref}/${sel?.docs[fileKeys[i]]||'doc-'+i}.${ext}`;
+    btn.textContent=`رفع الملف ${i+1}/${fileKeys.length}...`;
+    const {error:upErr}=await sb.storage.from('documents').upload(path,file,{upsert:true});
+    if(upErr){
+      console.warn('تحذير رفع الملف:',upErr.message);
+    } else {
+      fileUrls.push(path);
+    }
+  }
+
+  // ── 2. حفظ بيانات الطلب
+  btn.textContent='جاري الحفظ...';
   const request={
     id:           ref,
     service_name: sel?sel.name:'',
@@ -473,13 +497,7 @@ async function submitRequest(){
     created_at:   now.toISOString(),
   };
 
-  // ── إرسال إلى Supabase
-  const btn=document.querySelector('#pg35 .btn-primary');
-  btn.disabled=true;
-  btn.textContent='جاري الإرسال...';
-
   const {error}=await sb.from('requests').insert(request);
-
   if(error){
     btn.disabled=false;
     btn.textContent='✓ تأكيد الإرسال';
@@ -487,7 +505,7 @@ async function submitRequest(){
     return;
   }
 
-  // ── تحديث صفحة التأكيد
+  // ── 3. تحديث صفحة التأكيد
   document.getElementById('ref-num').textContent    = ref;
   document.getElementById('sum-svc').textContent    = request.service_name||'—';
   document.getElementById('sum-name').textContent   = request.name_ar||'—';
@@ -496,11 +514,11 @@ async function submitRequest(){
   document.getElementById('sum-phone').textContent  = request.phone||'—';
   document.getElementById('sum-date').textContent   = now.toLocaleDateString('ar-DZ');
 
-  // ── QR للمتابعة
   document.getElementById('qrcode').innerHTML='';
   const trackURL=window.location.origin+window.location.pathname.replace('index.html','')+'tracking.html?ref='+ref;
   new QRCode(document.getElementById('qrcode'),{text:trackURL,width:140,height:140,colorDark:'#1a6b4a',colorLight:'#ffffff'});
 
+  uploadedFiles={};
   goTo(4);
 }
 
