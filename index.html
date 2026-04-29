@@ -118,17 +118,15 @@
 
         <!-- صورة الخدمة + الوثائق -->
         <div id="svc-detail" style="display:none;animation:fadeIn .3s ease">
-          <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
-            <!-- صورة الخدمة -->
-            <div id="svc-img-wrap" style="flex-shrink:0;display:none">
-              <img id="svc-img" src="" alt="صورة الخدمة"
-                style="width:160px;height:120px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)">
-            </div>
-            <!-- الوثائق المطلوبة -->
-            <div class="docs-box show" style="flex:1;min-width:200px;margin-top:0">
-              <div style="font-size:13px;font-weight:600;margin-bottom:8px">📋 الوثائق المطلوبة</div>
-              <div id="docs-list"></div>
-            </div>
+          <!-- صورة الخدمة فوق -->
+          <div id="svc-img-wrap" style="display:none;margin-bottom:1rem">
+            <img id="svc-img" src="" alt="صورة الخدمة"
+              style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)">
+          </div>
+          <!-- الوثائق المطلوبة تحت الصورة -->
+          <div class="docs-box show" style="margin-top:0">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px">📋 الوثائق المطلوبة</div>
+            <div id="docs-list"></div>
           </div>
         </div>
       </div>

@@ -320,6 +320,19 @@ async function refreshData(){
   if(btn){btn.textContent='🔄 تحديث';btn.disabled=false;}
 }
 
+async function viewAgentFile(reqId){
+  // جلب قائمة الملفات وعرض ملفات الموظف فقط (تبدأ بـ agent-)
+  const {data,error}=await sb.storage.from('documents').list(reqId);
+  if(error||!data||!data.length){alert('لا توجد ملفات للموظف');return;}
+  const agentFiles=data.filter(f=>f.name.startsWith('agent-'));
+  if(!agentFiles.length){alert('لم يرفع الموظف أي ملف لهذا الطلب بعد');return;}
+  // فتح الملفات في تبويبات جديدة
+  for(const f of agentFiles){
+    const {data:signed}=await sb.storage.from('documents').createSignedUrl(reqId+'/'+f.name,3600);
+    if(signed?.signedUrl) window.open(signed.signedUrl,'_blank');
+  }
+}
+
 async function viewFiles(reqId){
   const el=document.getElementById('files-list');
   el.innerHTML='<span style="font-size:12px;color:var(--muted)">⏳ جاري التحميل...</span>';
@@ -379,25 +392,47 @@ function renderTable(){
   });
   const tbl=document.getElementById('req-table');
   if(!rows.length){tbl.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">لا توجد نتائج</td></tr>';return;}
-  tbl.innerHTML=`<thead><tr>
-    <th>الزبون</th><th>الخدمة</th><th>التاريخ</th><th>الحالة</th><th>الموظف المكلف</th><th>إجراءات</th>
-  </tr></thead><tbody>`+
-  rows.map(r=>{
-    const an=agentName(r.agentId);
-    return `<tr>
-      <td><div class="req-name">${r.nameAr}</div><div class="req-ref">${r.id}</div></td>
-      <td>${r.service}</td>
-      <td style="font-size:12px;color:var(--muted)">${r.date}</td>
-      <td><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></td>
-      <td><span class="agent-chip ${an?'':'none'}">${an?'👤 '+an:'— غير مُعيَّن'}</span></td>
-      <td style="white-space:nowrap">
-        <div style="display:flex;gap:5px">
-          <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
-          ${r.status!=='done'&&r.status!=='rejected'?`<button class="btn btn-primary btn-sm" onclick="quickDone('${r.id}')">✓</button>`:''}
-        </div>
+
+  // تجميع حسب نوع الخدمة
+  const groups={};
+  rows.forEach(r=>{
+    const svc=r.service||'غير محدد';
+    if(!groups[svc]) groups[svc]=[];
+    groups[svc].push(r);
+  });
+
+  let html=`<thead><tr>
+    <th>الزبون</th><th>التاريخ</th><th>الحالة</th><th>الموظف المكلف</th><th>إجراءات</th>
+  </tr></thead><tbody>`;
+
+  Object.entries(groups).forEach(([svcName,list])=>{
+    // رأس المجموعة
+    html+=`<tr>
+      <td colspan="5" style="background:var(--bg);font-size:12px;font-weight:700;color:var(--accent);padding:.6rem 1rem;border-bottom:1px solid var(--border)">
+        ${svcName} <span style="font-weight:400;color:var(--muted)">(${list.length})</span>
       </td>
     </tr>`;
-  }).join('')+'</tbody>';
+    // صفوف المجموعة
+    list.forEach(r=>{
+      const an=agentName(r.agentId);
+      const isDone=r.status==='done';
+      html+=`<tr>
+        <td><div class="req-name">${r.nameAr}</div><div class="req-ref">${r.id}</div></td>
+        <td style="font-size:12px;color:var(--muted)">${r.date}</td>
+        <td><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></td>
+        <td><span class="agent-chip ${an?'':'none'}">${an?'👤 '+an:'— غير مُعيَّن'}</span></td>
+        <td style="white-space:nowrap">
+          <div style="display:flex;gap:5px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
+            ${!isDone&&r.status!=='rejected'?`<button class="btn btn-primary btn-sm" onclick="quickDone('${r.id}')">✓</button>`:''}
+            ${isDone?`<button class="btn btn-ghost btn-sm" onclick="viewAgentFile('${r.id}')" title="ملف الموظف" style="padding:6px 10px">📄</button>`:''}
+          </div>
+        </td>
+      </tr>`;
+    });
+  });
+  html+='</tbody>';
+  tbl.innerHTML=html;
 }
 
 // ══ Request modal ══
