@@ -433,6 +433,7 @@ function validateStep2(){
 }
 
 function buildUploads(){
+  uploadedFiles = {}; // إعادة تعيين عند كل مرة
   const c=document.getElementById('upload-fields'); c.innerHTML='';
   if(!sel)return;
   sel.docs.forEach((d,i)=>{
@@ -450,7 +451,10 @@ function buildUploads(){
 // ── إعدادات الملفات — غيّرها حسب حاجتك
 const ALLOWED_TYPES = ['image/jpeg','image/png','application/pdf'];
 const ALLOWED_EXT   = ['jpg','jpeg','png','pdf'];
-const MAX_SIZE_MB   = 2;
+const MAX_SIZE_MB   = 5;
+
+// ── المتغير العام لحفظ الملفات المختارة
+let uploadedFiles = {};
 
 function fp(i,inp){
   const file=inp.files[0];
