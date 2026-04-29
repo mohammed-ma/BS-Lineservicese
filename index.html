@@ -493,8 +493,8 @@ async function submitRequest(){
   const fileKeys=Object.keys(uploadedFiles);
   for(let i=0;i<fileKeys.length;i++){
     const file=uploadedFiles[fileKeys[i]];
-    const ext=file.name.split('.').pop();
-    const path=`${ref}/${sel?.docs[fileKeys[i]]||'doc-'+i}.${ext}`;
+    const ext=file.name.split('.').pop().toLowerCase();
+    const path=`${ref}/doc-${parseInt(fileKeys[i])+1}.${ext}`; // اسم بسيط بدون عربية
     btn.textContent=`رفع الملف ${i+1}/${fileKeys.length}...`;
     const {error:upErr}=await sb.storage.from('documents').upload(path,file,{upsert:true});
     if(upErr){
