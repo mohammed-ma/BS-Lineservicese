@@ -416,8 +416,17 @@ function openReq(id){
     </div>
     ${r.notes?`<div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:.75rem;font-size:13px;margin-bottom:1.25rem"><strong>ملاحظات:</strong> ${r.notes}</div>`:''}
     <div style="margin-bottom:1.25rem">
-      <button class="btn btn-ghost btn-sm" onclick="viewFiles('${r.id}')">📎 عرض الملفات المرفوعة</button>
+      <button class="btn btn-ghost btn-sm" onclick="viewFiles('${r.id}')">📎 عرض ملفات الزبون</button>
       <div id="files-list" style="margin-top:8px"></div>
+    </div>
+    <!-- رفع ملف من الموظف -->
+    <div style="background:var(--info-bg);border:1px solid var(--info-border);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1.25rem">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:#1a4d8f">📤 رفع استمارة أو ملف من الموظف</div>
+      <label style="display:block;border:1.5px dashed var(--info-border);border-radius:var(--radius-sm);padding:.85rem;text-align:center;cursor:pointer;background:var(--surface)" id="agent-upload-zone">
+        <input type="file" id="agent-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="agentFileSelected(this)">
+        <div style="font-size:18px;margin-bottom:4px">📎</div>
+        <div style="font-size:12px;color:var(--muted)" id="agent-file-label">اضغط لاختيار الملف</div>
+      </label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
       <div class="field">
@@ -445,10 +454,31 @@ function openReq(id){
     <button class="btn btn-primary" onclick="saveReq('${id}')">حفظ التغييرات</button>`;
   document.getElementById('req-modal').classList.add('show');
 }
+let agentFile=null;
+function agentFileSelected(inp){
+  agentFile=inp.files[0]||null;
+  const lbl=document.getElementById('agent-file-label');
+  const zone=document.getElementById('agent-upload-zone');
+  if(agentFile){
+    lbl.textContent='✓ '+agentFile.name;
+    zone.style.borderColor='var(--accent)';
+  }
+}
+
 async function saveReq(id){
   const st=document.getElementById('modal-status').value;
   const ag=document.getElementById('modal-agent').value;
   const autoStatus=(ag&&st==='new')?'review':st;
+
+  // رفع ملف الموظف إن وُجد
+  if(agentFile){
+    const ext=agentFile.name.split('.').pop().toLowerCase();
+    const path=`${id}/agent-${Date.now()}.${ext}`;
+    const {error:upErr}=await sb.storage.from('documents').upload(path,agentFile,{upsert:true});
+    if(upErr) console.warn('خطأ رفع ملف الموظف:',upErr.message);
+    agentFile=null;
+  }
+
   const {error}=await sb.from('requests').update({
     status:   autoStatus,
     agent_id: ag?parseInt(ag):null
@@ -531,10 +561,23 @@ function renderServices(){
         <span style="font-size:22px">${s.icon}</span>
         <div><div style="font-weight:600;font-size:14px">${s.name}</div><div style="font-size:12px;color:var(--muted)">${s.docs.length} وثائق · ${s.desc}</div></div>
       </div>
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:6px;align-items:center">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="رفع صورة للخدمة">
+          🖼 صورة
+          <input type="file" accept="image/*" style="display:none" onchange="uploadSvcImage(${s.id},this)">
+        </label>
         <button class="btn btn-ghost btn-sm" onclick="deleteSvc(${s.id})">حذف</button>
       </div>
     </div>`).join('');
+}
+
+async function uploadSvcImage(svcId, inp){
+  const file=inp.files[0]; if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  const path=`svc-${svcId}.${ext}`;
+  const {error}=await sb.storage.from('services-images').upload(path,file,{upsert:true});
+  if(error) alert('خطأ: '+error.message);
+  else alert('✓ تم رفع صورة الخدمة بنجاح');
 }
 function openAddSvc(){
   ['ns-name','ns-icon','ns-desc','ns-docs'].forEach(id=>document.getElementById(id).value='');

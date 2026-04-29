@@ -106,12 +106,30 @@
   <!-- STEP 1: الخدمة -->
   <div class="pg active" id="pg1">
     <div class="card">
-      <div class="card-head"><h2>اختر الخدمة المطلوبة</h2><span class="text-muted text-sm" id="svc-count">جاري التحميل...</span></div>
+      <div class="card-head"><h2>اختر الخدمة المطلوبة</h2><span class="text-muted text-sm" id="svc-count"></span></div>
       <div class="card-body">
-        <div class="service-grid" id="svc-grid"></div>
-        <div class="docs-box" id="docs-box">
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px">📋 الوثائق المطلوبة</div>
-          <div id="docs-list"></div>
+        <!-- قائمة منسدلة -->
+        <div class="field" style="margin-bottom:1.25rem">
+          <label>الخدمة <span class="req">*</span></label>
+          <select id="svc-select" onchange="pickFromSelect(this)" style="font-size:14px;padding:11px 12px">
+            <option value="">— اختر الخدمة —</option>
+          </select>
+        </div>
+
+        <!-- صورة الخدمة + الوثائق -->
+        <div id="svc-detail" style="display:none;animation:fadeIn .3s ease">
+          <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+            <!-- صورة الخدمة -->
+            <div id="svc-img-wrap" style="flex-shrink:0;display:none">
+              <img id="svc-img" src="" alt="صورة الخدمة"
+                style="width:160px;height:120px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)">
+            </div>
+            <!-- الوثائق المطلوبة -->
+            <div class="docs-box show" style="flex:1;min-width:200px;margin-top:0">
+              <div style="font-size:13px;font-weight:600;margin-bottom:8px">📋 الوثائق المطلوبة</div>
+              <div id="docs-list"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -132,7 +150,11 @@
           <!-- الاسم بالفرنسية -->
           <div class="field">
             <label>Nom complet en français <span class="req">*</span></label>
-            <input type="text" id="f-name-fr" placeholder="Ex: Ahmed Ben Youcef" style="direction:ltr">
+            <input type="text" id="f-name-fr" placeholder="Ex: Ahmed Ben Youcef"
+              style="direction:ltr"
+              oninput="this.value=this.value.replace(/[\u0600-\u06FF]/g,'')"
+              onpaste="setTimeout(()=>this.value=this.value.replace(/[\u0600-\u06FF]/g,''),0)">
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Lettres latines uniquement — لا تُقبل الأحرف العربية</div>
           </div>
           <!-- رقم التعريف الوطني -->
           <div class="field span2">
@@ -326,23 +348,33 @@ const SERVICES = [
 
 let sel=null, cur=1;
 
-// Render services
-const grid=document.getElementById('svc-grid');
+// ── بناء القائمة المنسدلة
+const selEl=document.getElementById('svc-select');
 document.getElementById('svc-count').textContent=SERVICES.length+' خدمات متاحة';
 SERVICES.forEach(s=>{
-  const el=document.createElement('div');
-  el.className='svc-card'; el.id='sc-'+s.id;
-  el.innerHTML=`<div class="svc-icon">${s.icon}</div><div class="svc-name">${s.name}</div><div class="svc-desc">${s.desc}</div>`;
-  el.onclick=()=>pick(s);
-  grid.appendChild(el);
+  const opt=document.createElement('option');
+  opt.value=s.id; opt.textContent=s.icon+' '+s.name;
+  selEl.appendChild(opt);
 });
 
-function pick(s){
-  sel=s;
-  document.querySelectorAll('.svc-card').forEach(c=>c.classList.remove('sel'));
-  document.getElementById('sc-'+s.id).classList.add('sel');
-  document.getElementById('docs-box').classList.add('show');
-  document.getElementById('docs-list').innerHTML=s.docs.map(d=>`<div class="doc-row"><div class="doc-dot"></div>${d}</div>`).join('');
+async function pickFromSelect(el){
+  const id=parseInt(el.value);
+  if(!id){ sel=null; document.getElementById('svc-detail').style.display='none'; document.getElementById('btn-s1').disabled=true; return; }
+  sel=SERVICES.find(s=>s.id===id);
+  // الوثائق
+  document.getElementById('docs-list').innerHTML=sel.docs.map(d=>`<div class="doc-row"><div class="doc-dot"></div>${d}</div>`).join('');
+  // محاولة تحميل صورة الخدمة من Storage
+  const imgWrap=document.getElementById('svc-img-wrap');
+  const img=document.getElementById('svc-img');
+  const {data:signed}=await sb.storage.from('services-images').createSignedUrl('svc-'+id+'.jpg',3600).catch(()=>({data:null}));
+  if(signed?.signedUrl){ img.src=signed.signedUrl; imgWrap.style.display='block'; }
+  else {
+    // جرب png
+    const {data:s2}=await sb.storage.from('services-images').createSignedUrl('svc-'+id+'.png',3600).catch(()=>({data:null}));
+    if(s2?.signedUrl){ img.src=s2.signedUrl; imgWrap.style.display='block'; }
+    else imgWrap.style.display='none';
+  }
+  document.getElementById('svc-detail').style.display='block';
   document.getElementById('btn-s1').disabled=false;
 }
 
