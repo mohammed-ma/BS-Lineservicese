@@ -608,7 +608,7 @@ function renderServices(){
 
 async function uploadSvcImage(svcId, inp){
   const file=inp.files[0]; if(!file)return;
-  const ext=file.name.split('.').pop().toLowerCase();
+  const ext=file.name.split('.').pop().toLowerCase(); // jpg أو jpeg أو png
   const path=`svc-${svcId}.${ext}`;
   const {error}=await sb.storage.from('services-images').upload(path,file,{upsert:true});
   if(error) alert('خطأ: '+error.message);

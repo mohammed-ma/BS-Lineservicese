@@ -361,16 +361,20 @@ async function pickFromSelect(el){
   sel=SERVICES.find(s=>s.id===id);
   // الوثائق
   document.getElementById('docs-list').innerHTML=sel.docs.map(d=>`<div class="doc-row"><div class="doc-dot"></div>${d}</div>`).join('');
-  // محاولة تحميل صورة الخدمة من Storage
+  // محاولة تحميل صورة الخدمة من Storage — يجرب jpg ثم jpeg ثم png
   const imgWrap=document.getElementById('svc-img-wrap');
   const img=document.getElementById('svc-img');
-  const {data:signed}=await sb.storage.from('services-images').createSignedUrl('svc-'+id+'.jpg',3600).catch(()=>({data:null}));
-  if(signed?.signedUrl){ img.src=signed.signedUrl; imgWrap.style.display='block'; }
-  else {
-    // جرب png
-    const {data:s2}=await sb.storage.from('services-images').createSignedUrl('svc-'+id+'.png',3600).catch(()=>({data:null}));
-    if(s2?.signedUrl){ img.src=s2.signedUrl; imgWrap.style.display='block'; }
-    else imgWrap.style.display='none';
+  imgWrap.style.display='none';
+  const exts=['jpg','jpeg','png'];
+  let found=false;
+  for(const ext of exts){
+    const {data:signed}=await sb.storage.from('services-images').createSignedUrl('svc-'+id+'.'+ext,3600).catch(()=>({data:null}));
+    if(signed?.signedUrl){
+      img.src=signed.signedUrl;
+      imgWrap.style.display='block';
+      found=true;
+      break;
+    }
   }
   document.getElementById('svc-detail').style.display='block';
   document.getElementById('btn-s1').disabled=false;
