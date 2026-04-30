@@ -71,6 +71,11 @@
 .bar-track{background:var(--bg);border-radius:4px;height:8px;overflow:hidden}
 .bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
 
+/* Modal fix — footer always visible */
+.modal{display:flex;flex-direction:column;max-height:92vh}
+.modal-body{overflow-y:auto;flex:1}
+.modal-foot{flex-shrink:0}
+
 /* Mobile */
 @media(max-width:640px){
   .stats{grid-template-columns:1fr 1fr}
@@ -256,6 +261,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script>
 // ══ كلمة المرور — غيّرها هنا ══
 const ADMIN_PASSWORD = 'admin2026';
@@ -429,25 +435,27 @@ function renderTable(){
   });
 
   let html=`<thead><tr>
-    <th>الزبون</th><th>التاريخ</th><th>الحالة</th><th>الموظف المكلف</th><th>إجراءات</th>
+    <th>الزبون</th><th>التاريخ</th><th>الحالة</th><th>الموظف المكلف</th><th>مسار الملف</th><th>إجراءات</th>
   </tr></thead><tbody>`;
 
+  const fpLabels={'in-office':'📁 في المحل','with-agent':'👤 عند الموظف','received':'✅ استُلم'};
+
   Object.entries(groups).forEach(([svcName,list])=>{
-    // رأس المجموعة
     html+=`<tr>
-      <td colspan="5" style="background:var(--bg);font-size:12px;font-weight:700;color:var(--accent);padding:.6rem 1rem;border-bottom:1px solid var(--border)">
+      <td colspan="6" style="background:var(--bg);font-size:12px;font-weight:700;color:var(--accent);padding:.6rem 1rem;border-bottom:1px solid var(--border)">
         ${svcName} <span style="font-weight:400;color:var(--muted)">(${list.length})</span>
       </td>
     </tr>`;
-    // صفوف المجموعة
     list.forEach(r=>{
       const an=agentName(r.agentId);
       const isDone=r.status==='done';
+      const fpLabel=fpLabels[r.filePath]||'<span style="color:var(--muted)">—</span>';
       html+=`<tr>
         <td><div class="req-name">${r.nameAr}</div><div class="req-ref">${r.id}</div></td>
         <td style="font-size:12px;color:var(--muted)">${r.date}</td>
         <td><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></td>
         <td><span class="agent-chip ${an?'':'none'}">${an?'👤 '+an:'— غير مُعيَّن'}</span></td>
+        <td style="font-size:12px">${fpLabel}</td>
         <td style="white-space:nowrap">
           <div style="display:flex;gap:5px;align-items:center">
             <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
@@ -571,24 +579,28 @@ async function saveReq(id){
   closeModal('req-modal'); renderStats(); renderTable();
 }
 
-// ══ تصدير Excel ══
+// ══ تصدير Excel حقيقي ══
 function exportExcel(){
-  const header=['رقم المرجع','الخدمة','الاسم بالعربية','Nom','NIN','الهاتف','العنوان','الحالة','الموظف المكلف','مسار الملف','التاريخ'];
-  const fpLabels={'in-office':'في المحل','with-agent':'عند الموظف','received':'استُلم'};
-  const rows=REQUESTS.map(r=>[
-    r.id, r.service, r.nameAr, r.nameFr, r.nin, r.phone, r.address||'',
-    SL[r.status]?.t||r.status,
-    agentName(r.agentId)||'',
-    fpLabels[r.filePath]||'',
-    r.date,
-  ]);
-  const csv=[header,...rows].map(row=>row.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
-  const bom='\uFEFF';
-  const blob=new Blob([bom+csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='طلبات-'+new Date().toLocaleDateString('en').replace(/\//g,'-')+'.csv';
-  a.click();
+  const fpLabels={'in-office':'في المحل','with-agent':'عند الموظف','received':'استُلم من الزبون'};
+  const data=REQUESTS.map(r=>({
+    'رقم المرجع':       r.id,
+    'الخدمة':           r.service,
+    'الاسم بالعربية':   r.nameAr,
+    'Nom en français':  r.nameFr,
+    'NIN':              r.nin,
+    'الهاتف':           r.phone,
+    'العنوان':          r.address||'',
+    'الحالة':           SL[r.status]?.t||r.status,
+    'الموظف المكلف':    agentName(r.agentId)||'',
+    'مسار الملف':       fpLabels[r.filePath]||'',
+    'تاريخ التقديم':    r.date,
+  }));
+  const ws=XLSX.utils.json_to_sheet(data);
+  // ضبط عرض الأعمدة
+  ws['!cols']=[{wch:18},{wch:20},{wch:22},{wch:22},{wch:20},{wch:14},{wch:24},{wch:16},{wch:20},{wch:18},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,'الطلبات',ws);
+  XLSX.writeFile(wb,'طلبات-'+new Date().toLocaleDateString('en').replace(/\//g,'-')+'.xlsx');
 }
 async function quickDone(id){
   await sb.from('requests').update({status:'done'}).eq('id',id);
