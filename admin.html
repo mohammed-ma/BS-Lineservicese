@@ -133,7 +133,10 @@
       <div class="card">
         <div class="card-head">
           <h2>قائمة الطلبات</h2>
-          <input type="text" id="srch" placeholder="بحث..." style="width:180px;font-size:12px;padding:6px 10px" oninput="renderTable()">
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="exportExcel()">⬇ تصدير CSV</button>
+            <input type="text" id="srch" placeholder="بحث..." style="width:180px;font-size:12px;padding:6px 10px" oninput="renderTable()">
+          </div>
         </div>
         <div class="filter-bar">
           <button class="flt active" data-f="all" onclick="setFlt(this)">الكل</button>
@@ -209,23 +212,45 @@
   </div>
 </div>
 
-<!-- Modal: إضافة خدمة -->
+<!-- Modal: إضافة/تعديل خدمة -->
 <div class="overlay" id="svc-modal">
-  <div class="modal">
-    <div class="modal-head"><h3>إضافة خدمة</h3><button class="modal-close" onclick="closeModal('svc-modal')">✕</button></div>
+  <div class="modal" style="max-width:540px">
+    <div class="modal-head"><h3 id="svc-modal-title">إضافة خدمة</h3><button class="modal-close" onclick="closeModal('svc-modal')">✕</button></div>
     <div class="modal-body">
       <div style="display:flex;flex-direction:column;gap:1rem">
-        <div class="field"><label>اسم الخدمة <span class="req">*</span></label><input type="text" id="ns-name"></div>
-        <div style="display:grid;grid-template-columns:80px 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:70px 1fr;gap:10px">
           <div class="field"><label>أيقونة</label><input type="text" id="ns-icon" placeholder="📄" maxlength="2"></div>
-          <div class="field"><label>وصف قصير</label><input type="text" id="ns-desc"></div>
+          <div class="field"><label>اسم الخدمة <span class="req">*</span></label><input type="text" id="ns-name"></div>
+        </div>
+        <div class="field"><label>وصف قصير</label><input type="text" id="ns-desc"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field">
+            <label>ثمن الخدمة (دج)</label>
+            <input type="number" id="ns-price" placeholder="0" min="0">
+          </div>
+          <div class="field" style="justify-content:flex-end;padding-top:1.5rem">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
+              <input type="checkbox" id="ns-price-visible" checked style="width:16px;height:16px;accent-color:var(--accent)">
+              إظهار الثمن للزبون
+            </label>
+          </div>
         </div>
         <div class="field"><label>الوثائق المطلوبة <span style="font-weight:400;color:var(--muted)">(كل وثيقة في سطر)</span></label><textarea id="ns-docs" placeholder="بطاقة الهوية&#10;صورتان شمسيتان"></textarea></div>
+        <!-- رفع صورة الخدمة -->
+        <div class="field">
+          <label>صورة الخدمة</label>
+          <label style="display:flex;align-items:center;gap:10px;border:1.5px dashed var(--border);border-radius:var(--radius-sm);padding:.85rem;cursor:pointer;background:var(--bg)" id="svc-img-zone">
+            <input type="file" id="ns-img" accept="image/*" style="display:none" onchange="previewSvcImg(this)">
+            <span style="font-size:22px">🖼</span>
+            <span style="font-size:12px;color:var(--muted)" id="ns-img-label">اضغط لاختيار صورة</span>
+          </label>
+          <img id="ns-img-preview" src="" style="display:none;width:100%;max-height:140px;object-fit:cover;border-radius:var(--radius-sm);margin-top:6px;border:1px solid var(--border)">
+        </div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('svc-modal')">إلغاء</button>
-      <button class="btn btn-primary" onclick="saveSvc()">حفظ</button>
+      <button class="btn btn-primary" onclick="saveSvc()">حفظ الخدمة</button>
     </div>
   </div>
 </div>
@@ -263,16 +288,18 @@ async function loadFromSupabase(){
     sb.from('agents').select('*').order('id')
   ]);
   if(reqRes.data) REQUESTS = reqRes.data.map(r=>({
-    id:      r.id,
-    nameAr:  r.name_ar  ||'',
-    nameFr:  r.name_fr  ||'',
-    nin:     r.nin      ||'',
-    service: r.service_name||'',
-    date:    r.created_at? new Date(r.created_at).toLocaleDateString('ar-DZ') : '',
-    status:  r.status   ||'new',
-    phone:   r.phone    ||'',
-    notes:   r.notes    ||'',
-    agentId: r.agent_id ||null,
+    id:       r.id,
+    nameAr:   r.name_ar  ||'',
+    nameFr:   r.name_fr  ||'',
+    nin:      r.nin      ||'',
+    service:  r.service_name||'',
+    date:     r.created_at? new Date(r.created_at).toLocaleDateString('ar-DZ') : '',
+    status:   r.status   ||'new',
+    phone:    r.phone    ||'',
+    address:  r.address  ||'',
+    notes:    r.notes    ||'',
+    agentId:  r.agent_id ||null,
+    filePath: r.file_path||null,
   }));
   if(agRes.data) AGENTS = agRes.data.map(a=>({
     id:    a.id,
@@ -450,6 +477,27 @@ function openReq(id){
       <div><div class="text-sm text-muted">الحالة</div><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></div>
     </div>
     ${r.notes?`<div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:.75rem;font-size:13px;margin-bottom:1.25rem"><strong>ملاحظات:</strong> ${r.notes}</div>`:''}
+
+    <!-- checklist الوثائق -->
+    ${(()=>{const svc=SERVICES.find(s=>s.name===r.service);if(!svc||!svc.docs.length)return '';
+    return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.85rem 1rem;margin-bottom:1.25rem">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:.6rem">✅ قائمة التحقق من الوثائق</div>
+      ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer;border-bottom:0.5px dashed var(--border)">
+        <input type="checkbox" id="chk-${i}" style="width:15px;height:15px;accent-color:var(--accent)"> ${d}
+      </label>`).join('')}
+    </div>`;})()}
+
+    <!-- مسار الملف -->
+    <div class="field" style="margin-bottom:1.25rem">
+      <label>مسار الملف / موقع الطلب</label>
+      <select id="modal-file-path">
+        <option value="" ${!r.filePath?'selected':''}>— غير محدد —</option>
+        <option value="in-office" ${r.filePath==='in-office'?'selected':''}>📁 في المحل</option>
+        <option value="with-agent" ${r.filePath==='with-agent'?'selected':''}>👤 عند الموظف</option>
+        <option value="received" ${r.filePath==='received'?'selected':''}>✅ استُلم من طرف الزبون</option>
+      </select>
+    </div>
+
     <div style="margin-bottom:1.25rem">
       <button class="btn btn-ghost btn-sm" onclick="viewFiles('${r.id}')">📎 عرض ملفات الزبون</button>
       <div id="files-list" style="margin-top:8px"></div>
@@ -503,24 +551,44 @@ function agentFileSelected(inp){
 async function saveReq(id){
   const st=document.getElementById('modal-status').value;
   const ag=document.getElementById('modal-agent').value;
+  const fp=document.getElementById('modal-file-path').value;
   const autoStatus=(ag&&st==='new')?'review':st;
 
-  // رفع ملف الموظف إن وُجد
   if(agentFile){
     const ext=agentFile.name.split('.').pop().toLowerCase();
     const path=`${id}/agent-${Date.now()}.${ext}`;
-    const {error:upErr}=await sb.storage.from('documents').upload(path,agentFile,{upsert:true});
-    if(upErr) console.warn('خطأ رفع ملف الموظف:',upErr.message);
+    await sb.storage.from('documents').upload(path,agentFile,{upsert:true});
     agentFile=null;
   }
 
   const {error}=await sb.from('requests').update({
     status:   autoStatus,
-    agent_id: ag?parseInt(ag):null
+    agent_id: ag?parseInt(ag):null,
+    file_path: fp||null,
   }).eq('id',id);
   if(error){alert('خطأ: '+error.message);return;}
-  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:autoStatus,agentId:ag?parseInt(ag):null}:r);
+  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:autoStatus,agentId:ag?parseInt(ag):null,filePath:fp}:r);
   closeModal('req-modal'); renderStats(); renderTable();
+}
+
+// ══ تصدير Excel ══
+function exportExcel(){
+  const header=['رقم المرجع','الخدمة','الاسم بالعربية','Nom','NIN','الهاتف','العنوان','الحالة','الموظف المكلف','مسار الملف','التاريخ'];
+  const fpLabels={'in-office':'في المحل','with-agent':'عند الموظف','received':'استُلم'};
+  const rows=REQUESTS.map(r=>[
+    r.id, r.service, r.nameAr, r.nameFr, r.nin, r.phone, r.address||'',
+    SL[r.status]?.t||r.status,
+    agentName(r.agentId)||'',
+    fpLabels[r.filePath]||'',
+    r.date,
+  ]);
+  const csv=[header,...rows].map(row=>row.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+  const bom='\uFEFF';
+  const blob=new Blob([bom+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='طلبات-'+new Date().toLocaleDateString('en').replace(/\//g,'-')+'.csv';
+  a.click();
 }
 async function quickDone(id){
   await sb.from('requests').update({status:'done'}).eq('id',id);
@@ -589,42 +657,94 @@ async function deleteAgent(id){
 }
 
 // ══ Services ══
+let editSvcId=null;
+
 function renderServices(){
   document.getElementById('svc-list').innerHTML=SERVICES.map(s=>`
     <div class="svc-row">
       <div class="svc-info">
-        <span style="font-size:22px">${s.icon}</span>
-        <div><div style="font-weight:600;font-size:14px">${s.name}</div><div style="font-size:12px;color:var(--muted)">${s.docs.length} وثائق · ${s.desc}</div></div>
+        <span style="font-size:22px">${s.icon||'📄'}</span>
+        <div>
+          <div style="font-weight:600;font-size:14px">${s.name}
+            ${s.price?`<span style="font-size:11px;color:var(--accent);margin-right:8px;background:var(--accent-light);padding:2px 8px;border-radius:10px">${s.price} دج ${s.priceVisible?'🔓':'🔒'}</span>`:''}
+          </div>
+          <div style="font-size:12px;color:var(--muted)">${s.docs.length} وثائق · ${s.desc||''}</div>
+        </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="رفع صورة للخدمة">
-          🖼 صورة
-          <input type="file" accept="image/*" style="display:none" onchange="uploadSvcImage(${s.id},this)">
-        </label>
-        <button class="btn btn-ghost btn-sm" onclick="deleteSvc(${s.id})">حذف</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditSvc(${s.id})">تعديل</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSvc(${s.id})">حذف</button>
       </div>
     </div>`).join('');
 }
 
-async function uploadSvcImage(svcId, inp){
+function previewSvcImg(inp){
   const file=inp.files[0]; if(!file)return;
-  const ext=file.name.split('.').pop().toLowerCase(); // jpg أو jpeg أو png
-  const path=`svc-${svcId}.${ext}`;
-  const {error}=await sb.storage.from('services-images').upload(path,file,{upsert:true});
-  if(error) alert('خطأ: '+error.message);
-  else alert('✓ تم رفع صورة الخدمة بنجاح');
+  document.getElementById('ns-img-label').textContent='✓ '+file.name;
+  const reader=new FileReader();
+  reader.onload=e=>{const p=document.getElementById('ns-img-preview');p.src=e.target.result;p.style.display='block';};
+  reader.readAsDataURL(file);
 }
+
 function openAddSvc(){
-  ['ns-name','ns-icon','ns-desc','ns-docs'].forEach(id=>document.getElementById(id).value='');
+  editSvcId=null;
+  document.getElementById('svc-modal-title').textContent='إضافة خدمة جديدة';
+  ['ns-name','ns-icon','ns-desc','ns-docs','ns-price'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ns-price-visible').checked=true;
+  document.getElementById('ns-img-label').textContent='اضغط لاختيار صورة';
+  document.getElementById('ns-img-preview').style.display='none';
+  document.getElementById('ns-img').value='';
   document.getElementById('svc-modal').classList.add('show');
 }
-function saveSvc(){
+
+function openEditSvc(id){
+  const s=SERVICES.find(x=>x.id===id); if(!s)return;
+  editSvcId=id;
+  document.getElementById('svc-modal-title').textContent='تعديل الخدمة';
+  document.getElementById('ns-name').value=s.name||'';
+  document.getElementById('ns-icon').value=s.icon||'';
+  document.getElementById('ns-desc').value=s.desc||'';
+  document.getElementById('ns-docs').value=(s.docs||[]).join('\n');
+  document.getElementById('ns-price').value=s.price||'';
+  document.getElementById('ns-price-visible').checked=s.priceVisible!==false;
+  document.getElementById('ns-img-label').textContent='اضغط لتغيير الصورة';
+  document.getElementById('ns-img-preview').style.display='none';
+  document.getElementById('ns-img').value='';
+  document.getElementById('svc-modal').classList.add('show');
+}
+
+async function saveSvc(){
   const name=document.getElementById('ns-name').value.trim();
   if(!name){alert('يرجى إدخال اسم الخدمة');return;}
-  SERVICES.push({id:Date.now(),icon:document.getElementById('ns-icon').value||'📄',name,desc:document.getElementById('ns-desc').value,docs:document.getElementById('ns-docs').value.split('\n').map(d=>d.trim()).filter(Boolean)});
+  const svcData={
+    icon:  document.getElementById('ns-icon').value||'📄',
+    name,
+    desc:  document.getElementById('ns-desc').value,
+    docs:  document.getElementById('ns-docs').value.split('\n').map(d=>d.trim()).filter(Boolean),
+    price: document.getElementById('ns-price').value||null,
+    priceVisible: document.getElementById('ns-price-visible').checked,
+  };
+  const id=editSvcId||Date.now();
+  if(editSvcId) SERVICES=SERVICES.map(s=>s.id===editSvcId?{...s,...svcData}:s);
+  else SERVICES.push({id,...svcData});
+  // رفع الصورة إن وُجدت
+  const imgFile=document.getElementById('ns-img').files[0];
+  if(imgFile){
+    const ext=imgFile.name.split('.').pop().toLowerCase();
+    await sb.storage.from('services-images').upload(`svc-${id}.${ext}`,imgFile,{upsert:true});
+  }
   closeModal('svc-modal'); renderServices();
 }
+
 function deleteSvc(id){if(!confirm('حذف الخدمة؟'))return;SERVICES=SERVICES.filter(s=>s.id!==id);renderServices();}
+
+async function uploadSvcImage(svcId,inp){
+  const file=inp.files[0]; if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  const {error}=await sb.storage.from('services-images').upload(`svc-${svcId}.${ext}`,file,{upsert:true});
+  if(error)alert('خطأ: '+error.message);
+  else alert('✓ تم رفع صورة الخدمة بنجاح');
+}
 
 // ══ Charts ══
 function renderCharts(){
