@@ -127,7 +127,7 @@
           <div class="docs-box show" style="margin-top:0">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
               <div style="font-size:13px;font-weight:600">📋 الوثائق المطلوبة</div>
-              <div id="svc-price-badge" style="display:none;font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-light);padding:3px 12px;border-radius:20px;border:1px solid var(--accent-border)"></div>
+              <div id="svc-price-badge" style="display:none;font-size:14px;font-weight:700;color:var(--accent);background:var(--accent-light);padding:6px 16px;border-radius:20px;border:1.5px solid var(--accent-border);margin-top:8px;text-align:center"></div>
             </div>
             <div id="docs-list"></div>
           </div>
@@ -364,10 +364,14 @@ async function pickFromSelect(el){
   sel=SERVICES.find(s=>s.id===id);
   // الوثائق
   document.getElementById('docs-list').innerHTML=sel.docs.map(d=>`<div class="doc-row"><div class="doc-dot"></div>${d}</div>`).join('');
-  // ثمن الخدمة
+  // ثمن الخدمة — يظهر فقط إذا كان محدداً ومفعّل الإظهار
   const pb=document.getElementById('svc-price-badge');
-  if(sel.price&&sel.priceVisible!==false){pb.textContent='💰 '+sel.price+' دج';pb.style.display='block';}
-  else pb.style.display='none';
+  if(sel.price && sel.price!='0' && sel.priceVisible!==false){
+    pb.textContent='💰 ثمن الخدمة: '+sel.price+' دج';
+    pb.style.display='block';
+  } else {
+    pb.style.display='none';
+  }
   // محاولة تحميل صورة الخدمة من Storage — يجرب jpg ثم jpeg ثم png
   const imgWrap=document.getElementById('svc-img-wrap');
   const img=document.getElementById('svc-img');

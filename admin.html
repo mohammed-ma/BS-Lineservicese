@@ -261,7 +261,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 // ══ كلمة المرور — غيّرها هنا ══
 const ADMIN_PASSWORD = 'admin2026';
@@ -488,10 +488,11 @@ function openReq(id){
 
     <!-- checklist الوثائق -->
     ${(()=>{const svc=SERVICES.find(s=>s.name===r.service);if(!svc||!svc.docs.length)return '';
+    const checked=r.checklist||[];
     return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.85rem 1rem;margin-bottom:1.25rem">
       <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:.6rem">✅ قائمة التحقق من الوثائق</div>
-      ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer;border-bottom:0.5px dashed var(--border)">
-        <input type="checkbox" id="chk-${i}" style="width:15px;height:15px;accent-color:var(--accent)"> ${d}
+      ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;cursor:pointer;border-bottom:0.5px dashed var(--border)">
+        <input type="checkbox" class="doc-chk" data-i="${i}" ${checked.includes(i)?'checked':''} style="width:15px;height:15px;accent-color:var(--accent)"> ${d}
       </label>`).join('')}
     </div>`;})()}
 
@@ -562,6 +563,10 @@ async function saveReq(id){
   const fp=document.getElementById('modal-file-path').value;
   const autoStatus=(ag&&st==='new')?'review':st;
 
+  // قراءة حالة الـ checklist
+  const chkBoxes=document.querySelectorAll('.doc-chk');
+  const checklist=[...chkBoxes].filter(c=>c.checked).map(c=>parseInt(c.dataset.i));
+
   if(agentFile){
     const ext=agentFile.name.split('.').pop().toLowerCase();
     const path=`${id}/agent-${Date.now()}.${ext}`;
@@ -570,12 +575,14 @@ async function saveReq(id){
   }
 
   const {error}=await sb.from('requests').update({
-    status:   autoStatus,
-    agent_id: ag?parseInt(ag):null,
+    status:    autoStatus,
+    agent_id:  ag?parseInt(ag):null,
     file_path: fp||null,
   }).eq('id',id);
   if(error){alert('خطأ: '+error.message);return;}
-  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:autoStatus,agentId:ag?parseInt(ag):null,filePath:fp}:r);
+
+  // حفظ checklist محلياً في REQUESTS
+  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:autoStatus,agentId:ag?parseInt(ag):null,filePath:fp,checklist}:r);
   closeModal('req-modal'); renderStats(); renderTable();
 }
 
