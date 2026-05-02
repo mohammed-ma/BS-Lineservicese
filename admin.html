@@ -591,20 +591,21 @@ async function saveReq(id){
 }
 
 function exportExcel(){
-  if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تُحمَّل بعد، انتظر ثانية وأعد المحاولة');return;}
+  if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تُحمَّل، انتظر ثانية');return;}
   const fpLabels={'in-office':'في المحل','with-agent':'عند الموظف','received':'استُلم من الزبون'};
+  const str=v=>v==null?'':(Array.isArray(v)?v.join(', '):String(v));
   const data=REQUESTS.map(r=>({
-    'رقم المرجع':      String(r.id||''),
-    'الخدمة':          String(r.service||''),
-    'الاسم بالعربية':  String(r.nameAr||''),
-    'Nom en français': String(r.nameFr||''),
-    'NIN':             String(r.nin||''),
-    'الهاتف':          String(r.phone||''),
-    'العنوان':         String(r.address||''),
-    'الحالة':          String(SL[r.status]?.t||r.status||''),
-    'الموظف المكلف':   String(agentName(r.agentId)||''),
-    'مسار الملف':      String(fpLabels[r.filePath]||''),
-    'تاريخ التقديم':   String(r.date||''),
+    'رقم المرجع':      str(r.id),
+    'الخدمة':          str(r.service),
+    'الاسم بالعربية':  str(r.nameAr),
+    'Nom en français': str(r.nameFr),
+    'NIN':             str(r.nin),
+    'الهاتف':          str(r.phone),
+    'العنوان':         str(r.address),
+    'الحالة':          str(SL[r.status]?.t||r.status),
+    'الموظف المكلف':   str(agentName(r.agentId)),
+    'مسار الملف':      str(fpLabels[r.filePath]||''),
+    'تاريخ التقديم':   str(r.date),
   }));
   try{
     const ws=XLSX.utils.json_to_sheet(data);
