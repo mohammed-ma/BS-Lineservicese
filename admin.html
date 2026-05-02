@@ -261,7 +261,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ══ كلمة المرور — غيّرها هنا ══
 const ADMIN_PASSWORD = 'admin2026';
@@ -278,20 +278,14 @@ let editAgentId=null;
 let AGENTS=[];
 let REQUESTS=[];
 
-let SERVICES=[
-  {id:1,icon:'📄',name:'شهادة ميلاد',  desc:'استخراج من الحالة المدنية',docs:['بطاقة الهوية','دفتر العائلة','استمارة الطلب']},
-  {id:2,icon:'🪪',name:'بطاقة وطنية',  desc:'تجديد أو استخراج أولي',   docs:['البطاقة القديمة','صورتان شمسيتان','شهادة إقامة']},
-  {id:3,icon:'🚗',name:'رخصة السياقة', desc:'تجديد أو أول مرة',         docs:['الرخصة الحالية','شهادة طبية','بطاقة الهوية','وصل الرسوم']},
-  {id:4,icon:'🏠',name:'شهادة إقامة',  desc:'إثبات محل السكن',          docs:['بطاقة الهوية','عقد الإيجار']},
-  {id:5,icon:'📋',name:'سجل تجاري',    desc:'فتح نشاط تجاري جديد',     docs:['بطاقة الهوية','صورة شمسية','عقد الإيجار التجاري']},
-  {id:6,icon:'🎓',name:'تصديق شهادة', desc:'شهادات جامعية أو مهنية',  docs:['الشهادة الأصلية','نسختان مصورتان','بطاقة الهوية']},
-];
+let SERVICES=[];
 
 // ══ تحميل البيانات من Supabase ══
 async function loadFromSupabase(){
-  const [reqRes, agRes] = await Promise.all([
+  const [reqRes, agRes, svcRes] = await Promise.all([
     sb.from('requests').select('*').order('created_at',{ascending:false}),
-    sb.from('agents').select('*').order('id')
+    sb.from('agents').select('*').order('id'),
+    sb.from('services').select('*').order('id'),
   ]);
   if(reqRes.data) REQUESTS = reqRes.data.map(r=>({
     id:       r.id,
@@ -306,12 +300,22 @@ async function loadFromSupabase(){
     notes:    r.notes    ||'',
     agentId:  r.agent_id ||null,
     filePath: r.file_path||null,
+    checklist: r.checklist||[],
   }));
   if(agRes.data) AGENTS = agRes.data.map(a=>({
     id:    a.id,
     name:  a.name  ||'',
     role:  a.role  ||'',
     phone: a.phone ||'',
+  }));
+  if(svcRes.data) SERVICES = svcRes.data.map(s=>({
+    id:           s.id,
+    icon:         s.icon||'📄',
+    name:         s.name,
+    desc:         s.description||'',
+    docs:         s.docs||[],
+    price:        s.price||null,
+    priceVisible: s.price_visible!==false,
   }));
 }
 
@@ -736,26 +740,41 @@ async function saveSvc(){
   const name=document.getElementById('ns-name').value.trim();
   if(!name){alert('يرجى إدخال اسم الخدمة');return;}
   const svcData={
-    icon:  document.getElementById('ns-icon').value||'📄',
+    icon:          document.getElementById('ns-icon').value||'📄',
     name,
-    desc:  document.getElementById('ns-desc').value,
-    docs:  document.getElementById('ns-docs').value.split('\n').map(d=>d.trim()).filter(Boolean),
-    price: document.getElementById('ns-price').value||null,
-    priceVisible: document.getElementById('ns-price-visible').checked,
+    description:   document.getElementById('ns-desc').value,
+    docs:          document.getElementById('ns-docs').value.split('\n').map(d=>d.trim()).filter(Boolean),
+    price:         document.getElementById('ns-price').value||null,
+    price_visible: document.getElementById('ns-price-visible').checked,
   };
-  const id=editSvcId||Date.now();
-  if(editSvcId) SERVICES=SERVICES.map(s=>s.id===editSvcId?{...s,...svcData}:s);
-  else SERVICES.push({id,...svcData});
+
+  let savedId=editSvcId;
+  if(editSvcId){
+    const {error}=await sb.from('services').update(svcData).eq('id',editSvcId);
+    if(error){alert('خطأ في التعديل: '+error.message);return;}
+    SERVICES=SERVICES.map(s=>s.id===editSvcId?{...s,...svcData,desc:svcData.description,priceVisible:svcData.price_visible}:s);
+  } else {
+    const {data:res,error}=await sb.from('services').insert(svcData).select().single();
+    if(error){alert('خطأ في الإضافة: '+error.message);return;}
+    savedId=res.id;
+    SERVICES.push({id:savedId,...svcData,desc:svcData.description,priceVisible:svcData.price_visible});
+  }
+
   // رفع الصورة إن وُجدت
   const imgFile=document.getElementById('ns-img').files[0];
-  if(imgFile){
+  if(imgFile&&savedId){
     const ext=imgFile.name.split('.').pop().toLowerCase();
-    await sb.storage.from('services-images').upload(`svc-${id}.${ext}`,imgFile,{upsert:true});
+    await sb.storage.from('services-images').upload(`svc-${savedId}.${ext}`,imgFile,{upsert:true});
   }
   closeModal('svc-modal'); renderServices();
 }
 
-function deleteSvc(id){if(!confirm('حذف الخدمة؟'))return;SERVICES=SERVICES.filter(s=>s.id!==id);renderServices();}
+async function deleteSvc(id){
+  if(!confirm('حذف الخدمة؟'))return;
+  await sb.from('services').delete().eq('id',id);
+  SERVICES=SERVICES.filter(s=>s.id!==id);
+  renderServices();
+}
 
 async function uploadSvcImage(svcId,inp){
   const file=inp.files[0]; if(!file)return;
