@@ -590,28 +590,32 @@ async function saveReq(id){
   closeModal('req-modal'); renderStats(); renderTable();
 }
 
-// ══ تصدير Excel حقيقي ══
 function exportExcel(){
+  if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تُحمَّل بعد، انتظر ثانية وأعد المحاولة');return;}
   const fpLabels={'in-office':'في المحل','with-agent':'عند الموظف','received':'استُلم من الزبون'};
   const data=REQUESTS.map(r=>({
-    'رقم المرجع':       r.id,
-    'الخدمة':           r.service,
-    'الاسم بالعربية':   r.nameAr,
-    'Nom en français':  r.nameFr,
-    'NIN':              r.nin,
-    'الهاتف':           r.phone,
-    'العنوان':          r.address||'',
-    'الحالة':           SL[r.status]?.t||r.status,
-    'الموظف المكلف':    agentName(r.agentId)||'',
-    'مسار الملف':       fpLabels[r.filePath]||'',
-    'تاريخ التقديم':    r.date,
+    'رقم المرجع':      String(r.id||''),
+    'الخدمة':          String(r.service||''),
+    'الاسم بالعربية':  String(r.nameAr||''),
+    'Nom en français': String(r.nameFr||''),
+    'NIN':             String(r.nin||''),
+    'الهاتف':          String(r.phone||''),
+    'العنوان':         String(r.address||''),
+    'الحالة':          String(SL[r.status]?.t||r.status||''),
+    'الموظف المكلف':   String(agentName(r.agentId)||''),
+    'مسار الملف':      String(fpLabels[r.filePath]||''),
+    'تاريخ التقديم':   String(r.date||''),
   }));
-  const ws=XLSX.utils.json_to_sheet(data);
-  // ضبط عرض الأعمدة
-  ws['!cols']=[{wch:18},{wch:20},{wch:22},{wch:22},{wch:20},{wch:14},{wch:24},{wch:16},{wch:20},{wch:18},{wch:16}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,'الطلبات',ws);
-  XLSX.writeFile(wb,'طلبات-'+new Date().toLocaleDateString('en').replace(/\//g,'-')+'.xlsx');
+  try{
+    const ws=XLSX.utils.json_to_sheet(data);
+    ws['!cols']=[{wch:18},{wch:20},{wch:22},{wch:22},{wch:20},{wch:14},{wch:24},{wch:16},{wch:20},{wch:18},{wch:16}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,'الطلبات',ws);
+    XLSX.writeFile(wb,'طلبات-'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }catch(e){
+    console.error(e);
+    alert('خطأ في التصدير: '+e.message);
+  }
 }
 async function quickDone(id){
   await sb.from('requests').update({status:'done'}).eq('id',id);

@@ -337,26 +337,37 @@ const SB_URL = 'https://lfazaqaovdfikoyzhozw.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmYXphcWFvdmRmaWtveXpob3p3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDEzODYsImV4cCI6MjA5Mjc3NzM4Nn0.HstENezbz61oRgVvAxeUg6_YI4lW8qCwdeONR3uyhBM';
 const sb = supabase.createClient(SB_URL, SB_KEY);
 
-// ══ الخدمات ══
-const SERVICES = [
-  {id:1,icon:'📄',name:'شهادة ميلاد',  desc:'استخراج من الحالة المدنية',docs:['بطاقة الهوية الوطنية','دفتر العائلة','استمارة الطلب']},
-  {id:2,icon:'🪪',name:'بطاقة وطنية',  desc:'تجديد أو استخراج أولي',   docs:['البطاقة القديمة أو شهادة ميلاد','صورتان شمسيتان','شهادة إقامة']},
-  {id:3,icon:'🚗',name:'رخصة السياقة', desc:'تجديد أو أول مرة',         docs:['الرخصة الحالية','شهادة طبية','بطاقة الهوية','وصل دفع الرسوم']},
-  {id:4,icon:'🏠',name:'شهادة إقامة',  desc:'إثبات محل السكن',          docs:['بطاقة الهوية','عقد الإيجار أو الملكية']},
-  {id:5,icon:'📋',name:'سجل تجاري',    desc:'فتح نشاط تجاري جديد',     docs:['بطاقة الهوية','صورة شمسية','عقد الإيجار التجاري','نموذج فتح السجل']},
-  {id:6,icon:'🎓',name:'تصديق شهادة', desc:'شهادات جامعية أو مهنية',  docs:['الشهادة الأصلية','نسختان مصورتان','بطاقة الهوية']},
-];
-
+// ══ الخدمات — تُحمَّل من Supabase ══
+let SERVICES = [];
 let sel=null, cur=1;
 
-// ── بناء القائمة المنسدلة
-const selEl=document.getElementById('svc-select');
-document.getElementById('svc-count').textContent=SERVICES.length+' خدمات متاحة';
-SERVICES.forEach(s=>{
-  const opt=document.createElement('option');
-  opt.value=s.id; opt.textContent=s.icon+' '+s.name;
-  selEl.appendChild(opt);
-});
+async function loadServices(){
+  const selEl=document.getElementById('svc-select');
+  selEl.innerHTML='<option value="">⏳ جاري التحميل...</option>';
+  const {data,error}=await sb.from('services').select('*').order('id');
+  if(error||!data||!data.length){
+    selEl.innerHTML='<option value="">⚠ لا توجد خدمات — راجع الأدمن</option>';
+    document.getElementById('svc-count').textContent='0 خدمات';
+    return;
+  }
+  SERVICES=data.map(s=>({
+    id:           s.id,
+    icon:         s.icon||'📄',
+    name:         s.name||'',
+    desc:         s.description||'',
+    docs:         Array.isArray(s.docs)?s.docs:(s.docs?String(s.docs).split(',').map(d=>d.trim()).filter(Boolean):[]),
+    price:        s.price||null,
+    priceVisible: s.price_visible!==false,
+  }));
+  selEl.innerHTML='<option value="">— اختر الخدمة —</option>';
+  SERVICES.forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=s.id; opt.textContent=s.icon+' '+s.name;
+    selEl.appendChild(opt);
+  });
+  document.getElementById('svc-count').textContent=SERVICES.length+' خدمات متاحة';
+}
+loadServices();
 
 async function pickFromSelect(el){
   const id=parseInt(el.value);
