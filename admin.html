@@ -607,19 +607,16 @@ function exportExcel(){
     'مسار الملف':      str(fpLabels[r.filePath]||''),
     'تاريخ التقديم':   str(r.date),
   }));
-  try {
-    const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [{wch:18},{wch:20},{wch:22},{wch:22},{wch:20},{wch:14},{wch:24},{wch:16},{wch:20},{wch:18},{wch:16}];
-    
-    const wb = XLSX.utils.book_new();
-
-    // التعديل هنا: وضع ws قبل اسم الورقة
-    XLSX.utils.book_append_sheet(wb, ws, 'الطلبات');
-
-    XLSX.writeFile(wb, 'طلبات-' + new Date().toISOString().slice(0,10) + '.xlsx');
-} catch (e) {
+  try{
+    const ws=XLSX.utils.json_to_sheet(data);
+    ws['!cols']=[{wch:18},{wch:20},{wch:22},{wch:22},{wch:20},{wch:14},{wch:24},{wch:16},{wch:20},{wch:18},{wch:16}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,'الطلبات',ws);
+    XLSX.writeFile(wb,'طلبات-'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }catch(e){
     console.error(e);
-    alert('خطأ في التصدير: ' + e.message);
+    alert('خطأ في التصدير: '+e.message);
+  }
 }
 async function quickDone(id){
   await sb.from('requests').update({status:'done'}).eq('id',id);
