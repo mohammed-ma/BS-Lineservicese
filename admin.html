@@ -428,43 +428,60 @@ function renderTable(){
     return mf&&ms;
   });
   const tbl=document.getElementById('req-table');
-  if(!rows.length){tbl.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">لا توجد نتائج</td></tr>';return;}
+  if(!rows.length){tbl.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:2rem">لا توجد نتائج</td></tr>';return;}
 
-  // تجميع حسب نوع الخدمة
   const groups={};
-  rows.forEach(r=>{
-    const svc=r.service||'غير محدد';
-    if(!groups[svc]) groups[svc]=[];
-    groups[svc].push(r);
-  });
+  rows.forEach(r=>{ const s=r.service||'غير محدد'; if(!groups[s])groups[s]=[]; groups[s].push(r); });
+
+  const agOpts=AGENTS.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
 
   let html=`<thead><tr>
-    <th>الزبون</th><th>التاريخ</th><th>الحالة</th><th>الموظف المكلف</th><th>مسار الملف</th><th>إجراءات</th>
+    <th>الزبون</th>
+    <th>الحالة</th>
+    <th>الموظف المكلف</th>
+    <th>مسار الملف</th>
+    <th>إجراءات</th>
   </tr></thead><tbody>`;
 
-  const fpLabels={'in-office':'📁 في المحل','with-agent':'👤 عند الموظف','received':'✅ استُلم'};
-
   Object.entries(groups).forEach(([svcName,list])=>{
-    html+=`<tr>
-      <td colspan="6" style="background:var(--bg);font-size:12px;font-weight:700;color:var(--accent);padding:.6rem 1rem;border-bottom:1px solid var(--border)">
-        ${svcName} <span style="font-weight:400;color:var(--muted)">(${list.length})</span>
-      </td>
-    </tr>`;
+    html+=`<tr><td colspan="5" style="background:var(--bg);font-size:12px;font-weight:700;color:var(--accent);padding:.6rem 1rem;border-bottom:1px solid var(--border)">
+      ${svcName} <span style="font-weight:400;color:var(--muted)">(${list.length})</span>
+    </td></tr>`;
+
     list.forEach(r=>{
-      const an=agentName(r.agentId);
       const isDone=r.status==='done';
-      const fpLabel=fpLabels[r.filePath]||'<span style="color:var(--muted)">—</span>';
-      html+=`<tr>
-        <td><div class="req-name">${r.nameAr}</div><div class="req-ref">${r.id}</div></td>
-        <td style="font-size:12px;color:var(--muted)">${r.date}</td>
-        <td><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></td>
-        <td><span class="agent-chip ${an?'':'none'}">${an?'👤 '+an:'— غير مُعيَّن'}</span></td>
-        <td style="font-size:12px">${fpLabel}</td>
+      html+=`<tr id="row-${r.id}">
+        <td>
+          <div class="req-name">${r.nameAr}</div>
+          <div class="req-ref">${r.id}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${r.date}</div>
+        </td>
+        <td>
+          <select onchange="inlineUpdate('${r.id}','status',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer">
+            <option value="new"      ${r.status==='new'?'selected':''}>🔵 جديد</option>
+            <option value="review"   ${r.status==='review'?'selected':''}>🟡 قيد المراجعة</option>
+            <option value="done"     ${r.status==='done'?'selected':''}>🟢 مكتمل</option>
+            <option value="rejected" ${r.status==='rejected'?'selected':''}>🔴 مرفوض</option>
+          </select>
+        </td>
+        <td>
+          <select onchange="inlineUpdate('${r.id}','agent',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;max-width:150px">
+            <option value="">— غير مُعيَّن —</option>
+            ${AGENTS.map(a=>`<option value="${a.id}" ${r.agentId===a.id?'selected':''}>${a.name}</option>`).join('')}
+          </select>
+        </td>
+        <td>
+          <select onchange="inlineUpdate('${r.id}','filePath',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer">
+            <option value=""         ${!r.filePath?'selected':''}>— غير محدد —</option>
+            <option value="in-office"  ${r.filePath==='in-office'?'selected':''}>📁 في المحل</option>
+            <option value="with-agent" ${r.filePath==='with-agent'?'selected':''}>👤 عند الموظف</option>
+            <option value="received"   ${r.filePath==='received'?'selected':''}>✅ استُلم</option>
+          </select>
+        </td>
         <td style="white-space:nowrap">
-          <div style="display:flex;gap:5px;align-items:center">
-            <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
-            ${!isDone&&r.status!=='rejected'?`<button class="btn btn-primary btn-sm" onclick="quickDone('${r.id}')">✓</button>`:''}
-            ${isDone?`<button class="btn btn-ghost btn-sm" onclick="viewAgentFile('${r.id}')" title="ملف الموظف" style="padding:6px 10px">📄</button>`:''}
+          <div style="display:flex;gap:4px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">📋</button>
+            ${isDone?`<button class="btn btn-ghost btn-sm" onclick="viewAgentFile('${r.id}')" title="ملف الموظف">📄</button>`:''}
           </div>
         </td>
       </tr>`;
@@ -472,6 +489,35 @@ function renderTable(){
   });
   html+='</tbody>';
   tbl.innerHTML=html;
+}
+
+async function inlineUpdate(id, field, value){
+  const updateData={};
+  if(field==='status')   updateData.status   = value;
+  if(field==='agent')    updateData.agent_id  = value?parseInt(value):null;
+  if(field==='filePath') updateData.file_path = value||null;
+
+  // تحويل تلقائي لـ review عند تعيين موظف
+  if(field==='agent' && value){
+    const r=REQUESTS.find(x=>x.id===id);
+    if(r&&r.status==='new') updateData.status='review';
+  }
+
+  const {error}=await sb.from('requests').update(updateData).eq('id',id);
+  if(error){alert('خطأ في الحفظ: '+error.message);return;}
+
+  REQUESTS=REQUESTS.map(r=>{
+    if(r.id!==id) return r;
+    return {
+      ...r,
+      status:   updateData.status   ?? r.status,
+      agentId:  updateData.agent_id  !== undefined ? (updateData.agent_id||null) : r.agentId,
+      filePath: updateData.file_path !== undefined ? (updateData.file_path||null) : r.filePath,
+    };
+  });
+  renderStats();
+  // تحديث الصف فقط بدون إعادة رسم الجدول كله
+  renderTable();
 }
 
 // ══ Request modal ══
@@ -611,7 +657,7 @@ function exportExcel(){
     const ws=XLSX.utils.json_to_sheet(data);
     ws['!cols']=[{wch:18},{wch:20},{wch:22},{wch:22},{wch:20},{wch:14},{wch:24},{wch:16},{wch:20},{wch:18},{wch:16}];
     const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'الطلبات');
+    XLSX.utils.book_append_sheet(wb, ws, 'Requests');
     XLSX.writeFile(wb,'طلبات-'+new Date().toISOString().slice(0,10)+'.xlsx');
   }catch(e){
     console.error(e);
@@ -619,9 +665,7 @@ function exportExcel(){
   }
 }
 async function quickDone(id){
-  await sb.from('requests').update({status:'done'}).eq('id',id);
-  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:'done'}:r);
-  renderStats(); renderTable();
+  await inlineUpdate(id,'status','done');
 }
 
 // ══ Agents ══
