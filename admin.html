@@ -139,7 +139,10 @@
         <div class="card-head">
           <h2>قائمة الطلبات</h2>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost btn-sm" onclick="exportExcel()">⬇ تصدير Excel</button>
+            <button class="btn btn-sm" onclick="exportExcel()" style="background:#1D6F42;color:#fff;border:none;gap:6px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8.5 19l-2-3.5 2-3.5h1.8l-2 3.5 2 3.5H8.5zm5.2 0h-1.8l-2-3.5 2-3.5h1.8l-2 3.5 2 3.5z"/></svg>
+              تصدير Excel
+            </button>
             <input type="text" id="srch" placeholder="بحث..." style="width:180px;font-size:12px;padding:6px 10px" oninput="renderTable()">
           </div>
         </div>
