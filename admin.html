@@ -168,6 +168,28 @@
         </div>
         <div class="card-body" id="agents-list"></div>
       </div>
+      <!-- سجل الدفعات -->
+      <div class="card" id="payments-card" style="display:none">
+        <div class="card-head">
+          <h2 id="payments-title">دفعات الموظف</h2>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('payments-card').style.display='none'">✕ إغلاق</button>
+        </div>
+        <div class="card-body">
+          <div id="payments-summary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:1rem"></div>
+          <div id="payments-list"></div>
+          <div style="margin-top:1rem;display:flex;gap:8px;align-items:flex-end">
+            <div class="field" style="flex:1">
+              <label>مبلغ الدفعة (دج)</label>
+              <input type="number" id="pay-amount" placeholder="0" min="0" style="font-size:14px">
+            </div>
+            <div class="field" style="flex:2">
+              <label>ملاحظة</label>
+              <input type="text" id="pay-note" placeholder="مثال: دفعة أبريل">
+            </div>
+            <button class="btn btn-primary" onclick="addPayment()" style="flex-shrink:0">+ تسجيل دفعة</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── الخدمات ── -->
@@ -187,6 +209,7 @@
         <div class="card"><div class="card-head"><h2>الطلبات حسب الخدمة</h2></div><div class="card-body" id="chart-svc"></div></div>
         <div class="card"><div class="card-head"><h2>الطلبات حسب الحالة</h2></div><div class="card-body" id="chart-st"></div></div>
         <div class="card"><div class="card-head"><h2>الطلبات حسب الموظف</h2></div><div class="card-body" id="chart-agent"></div></div>
+        <div class="card"><div class="card-head"><h2>💰 حقوق الموظفين المستحقة</h2></div><div class="card-body" id="chart-earnings"></div></div>
       </div>
     </div>
 
@@ -234,7 +257,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="field">
             <label>ثمن الخدمة (دج)</label>
-            <input type="number" id="ns-price" placeholder="0" min="0">
+            <input type="number" id="ns-price" placeholder="0" min="0" oninput="autoCalcFee()">
           </div>
           <div class="field" style="justify-content:flex-end;padding-top:1.5rem">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500">
@@ -242,6 +265,10 @@
               إظهار الثمن للزبون
             </label>
           </div>
+        </div>
+        <div class="field">
+          <label>حقوق الموظف (دج) <span style="font-weight:400;color:var(--muted)">— الافتراضي: نصف الثمن</span></label>
+          <input type="number" id="ns-agent-fee" placeholder="0" min="0">
         </div>
         <div class="field"><label>الوثائق المطلوبة <span style="font-weight:400;color:var(--muted)">(كل وثيقة في سطر)</span></label><textarea id="ns-docs" placeholder="بطاقة الهوية&#10;صورتان شمسيتان"></textarea></div>
         <!-- رفع صورة الخدمة -->
@@ -306,18 +333,20 @@ async function loadFromSupabase(){
     checklist: r.checklist||[],
   }));
   if(agRes.data) AGENTS = agRes.data.map(a=>({
-    id:    a.id,
-    name:  a.name  ||'',
-    role:  a.role  ||'',
-    phone: a.phone ||'',
+    id:       a.id,
+    name:     a.name  ||'',
+    role:     a.role  ||'',
+    phone:    a.phone ||'',
+    payments: a.payments||[],
   }));
   if(svcRes.data) SERVICES = svcRes.data.map(s=>({
     id:           s.id,
     icon:         s.icon||'📄',
     name:         s.name,
     desc:         s.description||'',
-    docs:         s.docs||[],
+    docs:         Array.isArray(s.docs)?s.docs:(s.docs||[]),
     price:        s.price||null,
+    agentFee:     s.agent_fee||null,
     priceVisible: s.price_visible!==false,
   }));
 }
@@ -699,22 +728,125 @@ async function quickDone(id){
   await inlineUpdate(id,'status','done');
 }
 
+// ══ حساب حقوق الموظف تلقائياً ══
+function autoCalcFee(){
+  const price=parseFloat(document.getElementById('ns-price').value)||0;
+  const feeEl=document.getElementById('ns-agent-fee');
+  if(!feeEl.dataset.manual) feeEl.value=price>0?Math.round(price/2):'';
+}
+
+// ══ الدفعات ══
+let currentPayAgent=null;
+
+function openPayments(agentId){
+  currentPayAgent=agentId;
+  const a=AGENTS.find(x=>x.id===agentId);
+  document.getElementById('payments-title').textContent='💳 دفعات: '+a.name;
+  document.getElementById('pay-amount').value='';
+  document.getElementById('pay-note').value='';
+  renderPayments(agentId);
+  document.getElementById('payments-card').style.display='block';
+  document.getElementById('payments-card').scrollIntoView({behavior:'smooth'});
+}
+
+function renderPayments(agentId){
+  const a=AGENTS.find(x=>x.id===agentId);
+  const payments=a.payments||[];
+  const earned=calcAgentEarnings(agentId);
+  const paid=payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const balance=earned-paid;
+
+  document.getElementById('payments-summary').innerHTML=`
+    <div class="stat-card c-blue"><div class="stat-num">${earned.toLocaleString('ar')}</div><div class="stat-lbl">مستحق (دج)</div></div>
+    <div class="stat-card c-green"><div class="stat-num">${paid.toLocaleString('ar')}</div><div class="stat-lbl">مدفوع (دج)</div></div>
+    <div class="stat-card ${balance>0?'c-warn':'c-green'}"><div class="stat-num">${balance.toLocaleString('ar')}</div><div class="stat-lbl">الرصيد المتبقي (دج)</div></div>
+  `;
+
+  if(!payments.length){
+    document.getElementById('payments-list').innerHTML='<div style="text-align:center;color:var(--muted);padding:1rem;font-size:13px">لا توجد دفعات مسجلة بعد</div>';
+    return;
+  }
+  document.getElementById('payments-list').innerHTML=`
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr>
+        <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px">التاريخ</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px">المبلغ</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px">ملاحظة</th>
+        <th style="padding:6px 8px;border-bottom:1px solid var(--border)"></th>
+      </tr></thead>
+      <tbody>
+        ${payments.map((p,i)=>`<tr>
+          <td style="padding:6px 8px;border-bottom:1px solid var(--border);color:var(--muted)">${p.date}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600;color:var(--accent)">${parseFloat(p.amount).toLocaleString('ar')} دج</td>
+          <td style="padding:6px 8px;border-bottom:1px solid var(--border)">${p.note||'—'}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid var(--border)">
+            <button onclick="removePayment(${agentId},${i})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:14px">🗑</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function addPayment(){
+  const amount=parseFloat(document.getElementById('pay-amount').value);
+  if(!amount||amount<=0){alert('يرجى إدخال مبلغ صحيح');return;}
+  const note=document.getElementById('pay-note').value.trim();
+  const payment={amount,note,date:new Date().toLocaleDateString('ar-DZ')};
+  const a=AGENTS.find(x=>x.id===currentPayAgent);
+  const payments=[...(a.payments||[]),payment];
+  const {error}=await sb.from('agents').update({payments}).eq('id',currentPayAgent);
+  if(error){alert('خطأ: '+error.message);return;}
+  AGENTS=AGENTS.map(x=>x.id===currentPayAgent?{...x,payments}:x);
+  document.getElementById('pay-amount').value='';
+  document.getElementById('pay-note').value='';
+  renderPayments(currentPayAgent);
+  renderAgents();
+}
+
+async function removePayment(agentId,idx){
+  if(!confirm('حذف هذه الدفعة؟'))return;
+  const a=AGENTS.find(x=>x.id===agentId);
+  const payments=(a.payments||[]).filter((_,i)=>i!==idx);
+  await sb.from('agents').update({payments}).eq('id',agentId);
+  AGENTS=AGENTS.map(x=>x.id===agentId?{...x,payments}:x);
+  renderPayments(agentId);
+  renderAgents();
+}
+
+function calcAgentEarnings(agentId){
+  // حساب المستحقات من الطلبات المكتملة فقط
+  return REQUESTS.filter(r=>r.agentId===agentId&&r.status==='done').reduce((sum,r)=>{
+    const svc=SERVICES.find(s=>s.name===r.service);
+    const fee=svc?.agentFee?parseFloat(svc.agentFee):svc?.price?Math.round(parseFloat(svc.price)/2):0;
+    return sum+fee;
+  },0);
+}
+
 // ══ Agents ══
 function renderAgents(){
   const el=document.getElementById('agents-list');
   if(!AGENTS.length){el.innerHTML='<div style="text-align:center;color:var(--muted);padding:2rem">لا يوجد موظفون بعد</div>';return;}
   el.innerHTML=AGENTS.map(a=>{
-    const count=REQUESTS.filter(r=>r.agentId===a.id).length;
+    const count=REQUESTS.filter(r=>r.agentId===a.id&&r.status==='done').length;
+    const earned=calcAgentEarnings(a.id);
+    const paid=(a.payments||[]).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    const balance=earned-paid;
     return `<div class="agent-row">
-      <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex:1">
         <div class="agent-avatar">${a.name.charAt(0)}</div>
         <div>
           <div style="font-weight:600;font-size:14px">${a.name}</div>
-          <div style="font-size:12px;color:var(--muted)">${a.role} · ${a.phone}</div>
+          <div style="font-size:12px;color:var(--muted)">${a.role||''} · ${a.phone||''}</div>
+          <div style="font-size:12px;margin-top:3px;display:flex;gap:10px">
+            <span style="color:var(--accent)">مستحق: <strong>${earned.toLocaleString('ar')} دج</strong></span>
+            <span style="color:var(--muted)">مدفوع: <strong>${paid.toLocaleString('ar')} دج</strong></span>
+            <span style="color:${balance>0?'#8a5a00':balance===0?'var(--accent)':'var(--danger)'}">متبقي: <strong>${balance.toLocaleString('ar')} دج</strong></span>
+          </div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:12px;color:var(--muted)">${count} طلب مُكلَّف</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--muted)">${count} طلب مكتمل</span>
+        <button class="btn btn-ghost btn-sm" onclick="openPayments(${a.id})" style="color:var(--accent);border-color:var(--accent-border)">💳 الدفعات</button>
         <button class="btn btn-ghost btn-sm" onclick="openEditAgent(${a.id})">تعديل</button>
         <button class="btn btn-danger btn-sm" onclick="deleteAgent(${a.id})">حذف</button>
       </div>
@@ -792,7 +924,8 @@ function previewSvcImg(inp){
 function openAddSvc(){
   editSvcId=null;
   document.getElementById('svc-modal-title').textContent='إضافة خدمة جديدة';
-  ['ns-name','ns-icon','ns-desc','ns-docs','ns-price'].forEach(id=>document.getElementById(id).value='');
+  ['ns-name','ns-icon','ns-desc','ns-docs','ns-price','ns-agent-fee'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ns-agent-fee').dataset.manual='';
   document.getElementById('ns-price-visible').checked=true;
   document.getElementById('ns-img-label').textContent='اضغط لاختيار صورة';
   document.getElementById('ns-img-preview').style.display='none';
@@ -809,6 +942,8 @@ function openEditSvc(id){
   document.getElementById('ns-desc').value=s.desc||'';
   document.getElementById('ns-docs').value=(s.docs||[]).join('\n');
   document.getElementById('ns-price').value=s.price||'';
+  document.getElementById('ns-agent-fee').value=s.agentFee||'';
+  document.getElementById('ns-agent-fee').dataset.manual=s.agentFee?'1':'';
   document.getElementById('ns-price-visible').checked=s.priceVisible!==false;
   document.getElementById('ns-img-label').textContent='اضغط لتغيير الصورة';
   document.getElementById('ns-img-preview').style.display='none';
@@ -825,6 +960,7 @@ async function saveSvc(){
     description:   document.getElementById('ns-desc').value,
     docs:          document.getElementById('ns-docs').value.split('\n').map(d=>d.trim()).filter(Boolean),
     price:         document.getElementById('ns-price').value||null,
+    agent_fee:     document.getElementById('ns-agent-fee').value||null,
     price_visible: document.getElementById('ns-price-visible').checked,
   };
 
@@ -879,13 +1015,26 @@ function renderCharts(){
     `<div class="bar-row"><div class="bar-lbl"><span>${SL[k].t}</span><strong>${v}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${v/maxT*100}%;background:${cols[k]}"></div></div></div>`).join('');
   // by agent
   const byA={};
-  REQUESTS.forEach(r=>{
-    const name=r.agentId?agentName(r.agentId):'غير مُعيَّن';
-    byA[name]=(byA[name]||0)+1;
-  });
+  REQUESTS.forEach(r=>{const n=r.agentId?agentName(r.agentId):'غير مُعيَّن';byA[n]=(byA[n]||0)+1;});
   const maxA=Math.max(1,...Object.values(byA));
   document.getElementById('chart-agent').innerHTML=Object.entries(byA).map(([k,v])=>
     `<div class="bar-row"><div class="bar-lbl"><span>${k}</span><strong>${v}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${v/maxA*100}%;background:#6b8fd4"></div></div></div>`).join('');
+  // حقوق الموظفين
+  const earningsData=AGENTS.map(a=>{
+    const earned=calcAgentEarnings(a.id);
+    const paid=(a.payments||[]).reduce((s,p)=>s+parseFloat(p.amount||0),0);
+    return {name:a.name, earned, paid, balance:earned-paid};
+  }).filter(x=>x.earned>0||x.paid>0);
+  const maxE=Math.max(1,...earningsData.map(x=>x.earned));
+  document.getElementById('chart-earnings').innerHTML=earningsData.length?earningsData.map(x=>`
+    <div class="bar-row">
+      <div class="bar-lbl"><span>${x.name}</span><span style="font-size:11px;color:var(--muted)">${x.earned.toLocaleString('ar')} | مدفوع: ${x.paid.toLocaleString('ar')} | متبقي: <strong style="color:${x.balance>0?'#8a5a00':'#1a6b4a'}">${x.balance.toLocaleString('ar')}</strong> دج</span></div>
+      <div class="bar-track" style="height:10px">
+        <div style="width:${x.earned/maxE*100}%;height:100%;background:var(--accent);border-radius:4px;position:relative">
+          <div style="width:${x.earned>0?x.paid/x.earned*100:0}%;height:100%;background:#1a4d8f;border-radius:4px"></div>
+        </div>
+      </div>
+    </div>`).join(''):'<div style="color:var(--muted);font-size:13px;text-align:center;padding:1rem">لا توجد طلبات مكتملة بعد</div>';
 }
 
 // ══ Tabs ══
