@@ -65,14 +65,41 @@
 .agent-row:last-child{border-bottom:none}
 .agent-avatar{width:34px;height:34px;border-radius:50%;background:var(--accent-light);border:1.5px solid var(--accent-border);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent);flex-shrink:0}
 
-/* Charts */
-.bar-row{margin-bottom:.85rem}
+/* Archive accordion */
+.arch-group{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow)}
+.arch-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;cursor:pointer;transition:background .15s;user-select:none}
+.arch-head:hover{background:var(--bg)}
+.arch-head-left{display:flex;align-items:center;gap:10px}
+.arch-icon{font-size:20px}
+.arch-title{font-size:14px;font-weight:600}
+.arch-count{font-size:12px;color:var(--muted);background:var(--bg);padding:2px 10px;border-radius:12px;border:1px solid var(--border)}
+.arch-toggle{font-size:18px;color:var(--muted);transition:transform .25s;line-height:1}
+.arch-toggle.open{transform:rotate(45deg)}
+.arch-body{display:none;border-top:1px solid var(--border)}
+.arch-body.open{display:block;animation:fadeIn .2s ease}
+.arch-row{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);font-size:13px;gap:1rem}
+.arch-row:last-child{border-bottom:none}
+.arch-row:hover{background:var(--bg)}
+.arch-name{font-weight:600;min-width:120px}
+.arch-ref{font-size:11px;color:var(--muted);direction:ltr}
+.arch-meta{font-size:12px;color:var(--muted);flex:1}
+.arch-badges{display:flex;gap:6px;align-items:center;flex-shrink:0}
 .bar-lbl{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
 .bar-track{background:var(--bg);border-radius:4px;height:8px;overflow:hidden}
 .bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
 
-/* Modal fix — footer always visible */
-.modal{display:flex;flex-direction:column;max-height:92vh}
+/* Archive accordion */
+.arc-group{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow)}
+.arc-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;cursor:pointer;user-select:none;transition:background .15s}
+.arc-head:hover{background:var(--bg)}
+.arc-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px}
+.arc-toggle{font-size:18px;color:var(--muted);transition:transform .25s;line-height:1}
+.arc-toggle.open{transform:rotate(45deg)}
+.arc-body{display:none;border-top:1px solid var(--border)}
+.arc-body.open{display:block;animation:fadeIn .2s ease}
+.arc-row{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);font-size:13px}
+.arc-row:last-child{border-bottom:none}
+.arc-row:hover{background:var(--bg)}
 .modal-body{overflow-y:auto;flex:1}
 .modal-foot{flex-shrink:0}
 
@@ -130,6 +157,7 @@
       <button class="tab" onclick="switchTab('agents',this)">👥 الموظفون</button>
       <button class="tab" onclick="switchTab('services',this)">⚙️ الخدمات</button>
       <button class="tab" onclick="switchTab('stats',this)">📊 إحصائيات</button>
+      <button class="tab" onclick="switchTab('archive',this)">🗂 الأرشيف</button>
     </div>
 
     <!-- ── الطلبات ── -->
@@ -203,7 +231,7 @@
       </div>
     </div>
 
-    <!-- ── إحصائيات ── -->
+    <!-- ── الإحصائيات ── -->
     <div class="tc" id="tc-stats">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
         <div class="card"><div class="card-head"><h2>الطلبات حسب الخدمة</h2></div><div class="card-body" id="chart-svc"></div></div>
@@ -211,6 +239,24 @@
         <div class="card"><div class="card-head"><h2>الطلبات حسب الموظف</h2></div><div class="card-body" id="chart-agent"></div></div>
         <div class="card"><div class="card-head"><h2>💰 حقوق الموظفين المستحقة</h2></div><div class="card-body" id="chart-earnings"></div></div>
       </div>
+    </div>
+
+    <!-- ── الأرشيف ── -->
+    <div class="tc" id="tc-archive">
+      <div class="card-head" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.5rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;box-shadow:var(--shadow)">
+        <div>
+          <div style="font-weight:600;font-size:15px">🗂 الأرشيف</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">الطلبات المكتملة والمستلمة من الزبائن</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="archive-search" placeholder="بحث..." style="width:160px;font-size:12px;padding:6px 10px" oninput="renderArchive()">
+          <button class="btn btn-sm" onclick="exportArchiveExcel()" style="background:#1D6F42;color:#fff;border:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5z"/></svg>
+            Excel
+          </button>
+        </div>
+      </div>
+      <div id="archive-groups"></div>
     </div>
 
   </div>
@@ -433,8 +479,102 @@ function onAgentChange(){
   else hint.style.display='none';
 }
 
-// ══ Stats ══
-function renderStats(){
+// ══ الأرشيف ══
+function getArchiveRequests(){
+  return REQUESTS.filter(r=>r.status==='done'&&r.filePath==='received');
+}
+
+function renderArchive(){
+  const q=(document.getElementById('archive-search')||{}).value?.toLowerCase()||'';
+  const rows=getArchiveRequests().filter(r=>
+    !q||r.nameAr.includes(q)||r.id.toLowerCase().includes(q)||r.service.includes(q)
+  );
+  const el=document.getElementById('archive-groups');
+  if(!rows.length){
+    el.innerHTML=`<div style="text-align:center;padding:3rem;color:var(--muted)">
+      <div style="font-size:32px;margin-bottom:8px">🗂</div>
+      <div>لا توجد طلبات في الأرشيف بعد</div>
+      <div style="font-size:12px;margin-top:4px">تنتقل الطلبات هنا عند تحديد الحالة "مكتمل" ومسار الملف "استُلم من الزبون"</div>
+    </div>`;
+    return;
+  }
+  // تجميع حسب نوع الخدمة
+  const groups={};
+  rows.forEach(r=>{ if(!groups[r.service])groups[r.service]=[]; groups[r.service].push(r); });
+
+  el.innerHTML=Object.entries(groups).map(([svc,list],gi)=>`
+    <div class="arc-group">
+      <div class="arc-head" onclick="toggleArcGroup('ag-${gi}')">
+        <div class="arc-title">
+          <span class="arc-toggle" id="at-${gi}">+</span>
+          <span>${svc}</span>
+          <span style="font-size:11px;font-weight:400;color:var(--muted);background:var(--bg);padding:2px 8px;border-radius:10px;border:1px solid var(--border)">${list.length} طلب</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted)">${list[list.length-1]?.date||''} — ${list[0]?.date||''}</div>
+      </div>
+      <div class="arc-body" id="ag-${gi}">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.5rem 1.5rem;background:var(--bg);border-bottom:1px solid var(--border)">الزبون</th>
+            <th style="text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.5rem 1rem;background:var(--bg);border-bottom:1px solid var(--border)">التاريخ</th>
+            <th style="text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.5rem 1rem;background:var(--bg);border-bottom:1px solid var(--border)">الموظف</th>
+            <th style="text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.5rem 1rem;background:var(--bg);border-bottom:1px solid var(--border)">إجراءات</th>
+          </tr></thead>
+          <tbody>
+            ${list.map(r=>`
+              <tr class="arc-row" style="display:table-row">
+                <td style="padding:.7rem 1.5rem">
+                  <div style="font-weight:600">${r.nameAr}</div>
+                  <div style="font-size:11px;color:var(--muted);direction:ltr;display:inline-block">${r.id}</div>
+                </td>
+                <td style="padding:.7rem 1rem;font-size:12px;color:var(--muted)">${r.date}</td>
+                <td style="padding:.7rem 1rem;font-size:12px">${agentName(r.agentId)||'—'}</td>
+                <td style="padding:.7rem 1rem">
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
+                    <button class="btn btn-ghost btn-sm" onclick="viewAgentFile('${r.id}')" title="ملفات PDF" style="padding:6px 8px">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="#c0392b"><path d="M20 2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM9 9.5h1v-1H9v1zM4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6z"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`).join('');
+}
+
+function toggleArcGroup(id){
+  const body=document.getElementById(id);
+  const idx=id.split('-')[1];
+  const toggle=document.getElementById('at-'+idx);
+  const isOpen=body.classList.contains('open');
+  body.classList.toggle('open',!isOpen);
+  toggle.classList.toggle('open',!isOpen);
+  toggle.textContent=isOpen?'+':'−';
+}
+
+function exportArchiveExcel(){
+  if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تُحمَّل');return;}
+  const str=v=>v==null?'':(Array.isArray(v)?v.join(', '):String(v));
+  const rows=getArchiveRequests().map(r=>({
+    'رقم المرجع':     str(r.id),
+    'الخدمة':         str(r.service),
+    'الاسم بالعربية': str(r.nameAr),
+    'Nom':            str(r.nameFr),
+    'NIN':            str(r.nin),
+    'الهاتف':         str(r.phone),
+    'الموظف':         str(agentName(r.agentId)),
+    'تاريخ الاستلام': str(r.date),
+  }));
+  try{
+    const ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=[{wch:18},{wch:20},{wch:22},{wch:22},{wch:20},{wch:14},{wch:20},{wch:16}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Archive');
+    XLSX.writeFile(wb,'archive-'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }catch(e){alert('خطأ: '+e.message);}
+}
   const c={new:0,review:0,done:0,rejected:0};
   REQUESTS.forEach(r=>c[r.status]++);
   document.getElementById('stats-bar').innerHTML=`
@@ -1000,6 +1140,99 @@ async function uploadSvcImage(svcId,inp){
   else alert('✓ تم رفع صورة الخدمة بنجاح');
 }
 
+// ══ الأرشيف ══
+function renderArchive(){
+  const q=(document.getElementById('archive-search')||{}).value||'';
+  // فلترة: مكتمل + استُلم من الزبون
+  const archived=REQUESTS.filter(r=>
+    r.status==='done' && r.filePath==='received' &&
+    (!q || r.nameAr.includes(q) || r.id.toLowerCase().includes(q.toLowerCase()) || r.service.includes(q))
+  );
+
+  const container=document.getElementById('archive-groups');
+  if(!archived.length){
+    container.innerHTML=`<div style="text-align:center;padding:3rem;color:var(--muted)">
+      <div style="font-size:36px;margin-bottom:8px">🗂</div>
+      <div style="font-weight:600;margin-bottom:4px">الأرشيف فارغ</div>
+      <div style="font-size:12px">تظهر هنا الطلبات المكتملة التي استلمها الزبائن</div>
+    </div>`;
+    return;
+  }
+
+  // تجميع حسب نوع الخدمة
+  const groups={};
+  archived.forEach(r=>{ const s=r.service||'غير محدد'; if(!groups[s])groups[s]=[]; groups[s].push(r); });
+
+  container.innerHTML=Object.entries(groups).map(([svc,list],gi)=>`
+    <div class="arch-group">
+      <div class="arch-head" onclick="toggleArchGroup(${gi})">
+        <div class="arch-head-left">
+          <div class="arch-icon">${SERVICES.find(s=>s.name===svc)?.icon||'📄'}</div>
+          <div>
+            <div class="arch-title">${svc}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">${list.length} طلب مؤرشف</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="arch-count">${list.length}</span>
+          <span class="arch-toggle" id="arch-toggle-${gi}">+</span>
+        </div>
+      </div>
+      <div class="arch-body" id="arch-body-${gi}">
+        ${list.map(r=>`
+          <div class="arch-row">
+            <div>
+              <div class="arch-name">${r.nameAr}</div>
+              <div class="arch-ref">${r.id}</div>
+            </div>
+            <div class="arch-meta">
+              ${agentName(r.agentId)?`👤 ${agentName(r.agentId)}`:''}
+              · 📅 ${r.date}
+            </div>
+            <div class="arch-badges">
+              <span class="badge badge-done">✅ مستلم</span>
+              <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
+              <button class="btn btn-ghost btn-sm" onclick="viewAgentFile('${r.id}')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="#c0392b"><path d="M20 2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>
+              </button>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function toggleArchGroup(gi){
+  const body=document.getElementById('arch-body-'+gi);
+  const toggle=document.getElementById('arch-toggle-'+gi);
+  const isOpen=body.classList.toggle('open');
+  toggle.textContent=isOpen?'−':'+';
+  toggle.classList.toggle('open',isOpen);
+}
+
+function exportArchiveExcel(){
+  if(typeof XLSX==='undefined'){alert('مكتبة Excel لم تُحمَّل');return;}
+  const str=v=>v==null?'':(Array.isArray(v)?v.join(', '):String(v));
+  const archived=REQUESTS.filter(r=>r.status==='done'&&r.filePath==='received');
+  const data=archived.map(r=>({
+    'رقم المرجع':      str(r.id),
+    'الخدمة':          str(r.service),
+    'الاسم بالعربية':  str(r.nameAr),
+    'Nom en français': str(r.nameFr),
+    'NIN':             str(r.nin),
+    'الهاتف':          str(r.phone),
+    'الموظف المكلف':   str(agentName(r.agentId)),
+    'تاريخ التقديم':   str(r.date),
+  }));
+  if(!data.length){alert('لا توجد ملفات في الأرشيف');return;}
+  try{
+    const ws=XLSX.utils.json_to_sheet(data);
+    ws['!cols']=[{wch:18},{wch:20},{wch:22},{wch:22},{wch:20},{wch:14},{wch:20},{wch:16}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Archive');
+    XLSX.writeFile(wb,'أرشيف-'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }catch(e){alert('خطأ: '+e.message);}
+}
+
 // ══ Charts ══
 function renderCharts(){
   // by service
@@ -1043,7 +1276,8 @@ function switchTab(name,btn){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('tc-'+name).classList.add('active');
   btn.classList.add('active');
-  if(name==='stats')renderCharts();
+  if(name==='stats')   renderCharts();
+  if(name==='archive') renderArchive();
 }
 
 // ══ Helpers ══
