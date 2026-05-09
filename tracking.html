@@ -11,22 +11,19 @@
 .search-box p{font-size:13px;color:var(--muted);margin-bottom:1.5rem}
 .search-row{display:flex;gap:10px;max-width:440px;margin:0 auto}
 .search-row input{flex:1;direction:ltr;text-align:center;font-size:14px;font-weight:600;letter-spacing:1px}
-
 .result-box{display:none}
 .result-box.show{display:block;animation:fadeIn .3s ease}
-
 .status-header{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.5rem;margin-bottom:1rem}
 .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;margin-top:.75rem}
 .meta-lbl{font-size:11px;color:var(--muted)}
 .meta-val{font-size:13px;font-weight:600}
-
 .timeline{padding:.5rem 0}
 .tl-item{display:flex;gap:14px;padding-bottom:1.25rem;position:relative}
 .tl-item:last-child{padding-bottom:0}
 .tl-left{display:flex;flex-direction:column;align-items:center;width:14px;flex-shrink:0}
 .tl-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
-.tl-dot.done   {background:var(--accent);border:2px solid var(--accent)}
-.tl-dot.active {background:#fff;border:2px solid #d4a017;box-shadow:0 0 0 3px #fdf6ec}
+.tl-dot.done  {background:var(--accent);border:2px solid var(--accent)}
+.tl-dot.active{background:#fff;border:2px solid #d4a017;box-shadow:0 0 0 3px #fdf6ec}
 .tl-dot.pending{background:var(--surface);border:2px solid var(--border-strong)}
 .tl-vline{flex:1;width:2px;background:var(--border);margin-top:4px}
 .tl-item:last-child .tl-vline{display:none}
@@ -34,6 +31,21 @@
 .tl-desc{font-size:12px;color:var(--muted)}
 .tl-date{font-size:11px;color:var(--muted);margin-top:3px}
 .tl-pending .tl-title{color:var(--muted)}
+
+/* upload zone */
+.upload-zone{border:2px dashed var(--border-strong);border-radius:var(--radius-sm);padding:1rem;text-align:center;cursor:pointer;background:var(--bg);transition:all .2s;display:block}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-light)}
+.upload-zone.has-file{border-color:var(--accent);background:var(--accent-light)}
+.upload-zone input{display:none}
+
+/* payment */
+.pay-box{background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:1.25rem;margin-top:1rem}
+.pay-methods{display:flex;gap:10px;flex-wrap:wrap;margin-top:.75rem}
+.pay-method{flex:1;min-width:140px;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:.85rem;cursor:pointer;text-align:center;background:var(--surface);transition:all .2s}
+.pay-method:hover,.pay-method.sel{border-color:var(--accent);background:var(--accent-light)}
+.pay-method-icon{font-size:24px;margin-bottom:4px}
+.pay-method-name{font-size:13px;font-weight:600}
+.pay-method-desc{font-size:11px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -57,16 +69,12 @@
       <input type="text" id="ref-input" placeholder="ADM-2026-XXXX" onkeydown="if(event.key==='Enter')doSearch()">
       <button class="btn btn-primary" onclick="doSearch()">بحث</button>
     </div>
-    <div style="margin-top:.75rem;font-size:11px;color:var(--muted)">
-      للتجربة: <strong>ADM-2026-4832</strong> أو <strong>ADM-2026-7741</strong>
-    </div>
   </div>
 
   <div class="result-box" id="result-box"></div>
 
 </div>
 
-<script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SB_URL='https://lfazaqaovdfikoyzhozw.supabase.co';
@@ -75,35 +83,35 @@ const sb=supabase.createClient(SB_URL,SB_KEY);
 
 const SL={new:{t:'جديد',c:'badge-new'},review:{t:'قيد المراجعة',c:'badge-review'},done:{t:'مكتمل',c:'badge-done'},rejected:{t:'مرفوض',c:'badge-rejected'}};
 
-// بناء مسار الطلب حسب الحالة
-function buildSteps(status, createdAt){
+// ══ بناء مسار الطلب ══
+function buildSteps(status,createdAt,missingDocs){
   const date=createdAt?new Date(createdAt).toLocaleDateString('ar-DZ'):'';
+  const hasMissing=missingDocs&&missingDocs.length>0;
   const all=[
-    {title:'استلام الطلب',      desc:'تم استلام طلبك وتسجيله في النظام', date},
-    {title:'مراجعة الوثائق',    desc:'يقوم الموظف بالتحقق من صحة الوثائق', date:''},
-    {title:'المعالجة الإدارية', desc:'إتمام الإجراءات الداخلية', date:''},
-    {title:'إشعار بالنتيجة',    desc:'يمكنك استلام وثيقتك من المكتب', date:''},
+    {title:'استلام الطلب',       desc:'تم استلام طلبك وتسجيله في النظام', date},
+    {title:'مراجعة الوثائق',     desc: hasMissing?`⚠ يوجد ${missingDocs.length} ملف(ات) ناقصة — يرجى رفعها أدناه`:'جاري التحقق من الوثائق المرفوعة', date:''},
+    {title:'المعالجة الإدارية',  desc:'إتمام الإجراءات الإدارية الداخلية', date:''},
+    {title:'جاهز للاستلام',      desc:'يمكنك التوجه للمكتب لاستلام وثيقتك', date:''},
   ];
   const map={new:1,review:2,done:4,rejected:2};
   const cur=map[status]||1;
   return all.map((s,i)=>({
     ...s,
-    state: i<cur?'done': i===cur-1&&status!=='rejected'?'active':'pending'
+    state: i<cur?'done': i===cur-1&&status!=='rejected'?'active':'pending',
+    alert: i===1&&hasMissing,
   }));
 }
 
+// ══ بحث رئيسي ══
 async function doSearch(){
   const ref=document.getElementById('ref-input').value.trim().toUpperCase();
   const box=document.getElementById('result-box');
   box.classList.remove('show');
   if(!ref){alert('يرجى إدخال رقم المرجع');return;}
-
-  // مؤشر تحميل
   box.innerHTML=`<div style="text-align:center;padding:2rem;color:var(--muted)">⏳ جاري البحث...</div>`;
   box.classList.add('show');
 
   const {data,error}=await sb.from('requests').select('*').eq('id',ref).single();
-
   if(error||!data){
     box.innerHTML=`<div style="text-align:center;padding:2rem;color:var(--muted)">
       <div style="font-size:32px;margin-bottom:8px">🔎</div>
@@ -113,26 +121,83 @@ async function doSearch(){
     return;
   }
 
+  renderResult(data);
+}
+
+function renderResult(data){
+  const box=document.getElementById('result-box');
   const st=SL[data.status]||SL.new;
-  const steps=buildSteps(data.status, data.created_at);
   const submitted=data.created_at?new Date(data.created_at).toLocaleDateString('ar-DZ'):'';
+  const missing=data.missing_docs||[];
+  const steps=buildSteps(data.status,data.created_at,missing);
+  const price=data.service_price;
+  const paid=data.payment_status==='paid';
 
   const tl=steps.map(s=>`
     <div class="tl-item ${s.state==='pending'?'tl-pending':''}">
       <div class="tl-left"><div class="tl-dot ${s.state}"></div><div class="tl-vline"></div></div>
-      <div>
-        <div class="tl-title">${s.title}</div>
-        <div class="tl-desc">${s.desc}</div>
+      <div style="flex:1">
+        <div class="tl-title" ${s.alert?'style="color:#8a5a00"':''}>${s.title}${s.alert?' ⚠':''}</div>
+        <div class="tl-desc" ${s.alert?'style="color:#8a5a00;font-weight:500"':''}>${s.desc}</div>
         ${s.date?`<div class="tl-date">📅 ${s.date}</div>`:''}
       </div>
     </div>`).join('');
+
+  // قسم الملفات الناقصة
+  const missingSection=missing.length?`
+    <div class="card" style="border-color:var(--warn-border)">
+      <div class="card-head" style="background:var(--warn-bg)">
+        <h2 style="color:#8a5a00">⚠ ملفات ناقصة — يرجى رفعها</h2>
+        <span style="font-size:12px;color:#8a5a00">${missing.length} ملف(ات)</span>
+      </div>
+      <div class="card-body">
+        <div id="missing-uploads" style="display:flex;flex-direction:column;gap:1rem">
+          ${missing.map((doc,i)=>`
+            <div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:6px">📎 ${doc}</div>
+              <label class="upload-zone" id="muz-${i}">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="missingFilePicked(${i},this,'${data.id}','${doc}')">
+                <div style="font-size:18px;margin-bottom:4px">📁</div>
+                <div style="font-size:12px;color:var(--muted)" id="mul-${i}">اضغط لرفع الملف</div>
+              </label>
+            </div>`).join('')}
+        </div>
+        <div id="missing-upload-msg" style="margin-top:1rem;display:none;background:var(--accent-light);border:1px solid var(--accent-border);border-radius:var(--radius-sm);padding:.75rem;font-size:13px;color:var(--accent)"></div>
+      </div>
+    </div>`:''
+
+  // قسم الدفع
+  const paySection=price&&!paid?`
+    <div class="pay-box">
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">💰 رسوم الخدمة: <span style="color:var(--accent)">${price} دج</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:.75rem">يمكنك الدفع مسبقاً عبر إحدى الوسائل التالية أو عند استلام الوثيقة من المكتب</div>
+      <div class="pay-methods">
+        <div class="pay-method" onclick="selectPayMethod(this,'baridimob')">
+          <div class="pay-method-icon">📱</div>
+          <div class="pay-method-name">بريدي موب</div>
+          <div class="pay-method-desc">BaridiMob</div>
+        </div>
+        <div class="pay-method" onclick="selectPayMethod(this,'ccp')">
+          <div class="pay-method-icon">🏦</div>
+          <div class="pay-method-name">تحويل CCP</div>
+          <div class="pay-method-desc">حساب بريدي</div>
+        </div>
+        <div class="pay-method" onclick="selectPayMethod(this,'office')">
+          <div class="pay-method-icon">🏢</div>
+          <div class="pay-method-name">عند الاستلام</div>
+          <div class="pay-method-desc">في المكتب</div>
+        </div>
+      </div>
+      <div id="pay-details" style="margin-top:1rem;display:none"></div>
+    </div>`:
+    paid?`<div style="background:var(--accent-light);border:1px solid var(--accent-border);border-radius:var(--radius-sm);padding:.85rem 1.25rem;font-size:13px;color:var(--accent)">✅ تم تأكيد الدفع</div>`:''
 
   box.innerHTML=`
     <div class="status-header">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem">
         <div>
           <div style="font-size:17px;font-weight:700">${data.service_name||'—'}</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:.5rem;direction:ltr;display:inline-block">${ref}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:.5rem;direction:ltr">${data.id}</div>
         </div>
         <span class="badge ${st.c}">${st.t}</span>
       </div>
@@ -141,17 +206,106 @@ async function doSearch(){
         <div><div class="meta-lbl">تاريخ التقديم</div><div class="meta-val">${submitted}</div></div>
       </div>
     </div>
+
     <div class="card">
       <div class="card-head"><h2>مسار الطلب</h2></div>
       <div class="card-body"><div class="timeline">${tl}</div></div>
     </div>
-    ${data.status==='done'?`<div style="background:var(--accent-light);border:1px solid var(--accent-border);border-radius:var(--radius-sm);padding:1rem 1.25rem;font-size:13px;color:var(--accent)">✅ <strong>طلبك مكتمل!</strong> توجّه إلى المكتب لاستلام وثيقتك. أحضر معك بطاقة الهوية.</div>`:''}
-    ${data.status==='rejected'?`<div style="background:var(--danger-light);border:1px solid #f0b0a8;border-radius:var(--radius-sm);padding:1rem 1.25rem;font-size:13px;color:var(--danger)">❌ <strong>تعذّر إتمام الطلب.</strong> تواصل مع المكتب لمعرفة التفاصيل.</div>`:''}
+
+    ${missingSection}
+    ${paySection||''}
+
+    ${data.status==='done'&&data.file_path==='received'?`
+    <div style="background:var(--accent-light);border:1px solid var(--accent-border);border-radius:var(--radius-sm);padding:1rem 1.25rem;font-size:13px;color:var(--accent)">
+      ✅ <strong>تم استلام وثيقتك.</strong> شكراً لثقتك بخدماتنا.
+    </div>`:''}
+    ${data.status==='done'&&data.file_path!=='received'?`
+    <div style="background:var(--accent-light);border:1px solid var(--accent-border);border-radius:var(--radius-sm);padding:1rem 1.25rem;font-size:13px;color:var(--accent)">
+      ✅ <strong>طلبك جاهز!</strong> توجّه إلى المكتب لاستلام وثيقتك. أحضر معك بطاقة الهوية.
+    </div>`:''}
+    ${data.status==='rejected'?`
+    <div style="background:var(--danger-light);border:1px solid #f0b0a8;border-radius:var(--radius-sm);padding:1rem 1.25rem;font-size:13px;color:var(--danger)">
+      ❌ <strong>تعذّر إتمام الطلب.</strong> تواصل مع المكتب لمعرفة التفاصيل أو لإعادة التقديم.
+    </div>`:''}
   `;
   box.classList.add('show');
 }
 
-// Auto-fill from URL param (from QR code)
+// ══ رفع ملف ناقص ══
+let missingUploading=false;
+async function missingFilePicked(i,inp,reqId,docName){
+  const file=inp.files[0]; if(!file)return;
+  if(missingUploading)return;
+  missingUploading=true;
+
+  const zone=document.getElementById('muz-'+i);
+  const lbl=document.getElementById('mul-'+i);
+  zone.classList.add('has-file');
+  lbl.textContent='⏳ جاري الرفع...';
+
+  const ext=file.name.split('.').pop().toLowerCase();
+  const path=`${reqId}/missing-${Date.now()}.${ext}`;
+  const {error}=await sb.storage.from('documents').upload(path,file,{upsert:true});
+
+  missingUploading=false;
+  if(error){
+    lbl.textContent='❌ فشل الرفع — أعد المحاولة';
+    zone.classList.remove('has-file');
+    return;
+  }
+
+  lbl.textContent='✓ تم رفع: '+file.name;
+
+  // إزالة هذا الملف من قائمة الناقصات في Supabase
+  const {data:req}=await sb.from('requests').select('missing_docs').eq('id',reqId).single();
+  if(req){
+    const updated=(req.missing_docs||[]).filter(d=>d!==docName);
+    await sb.from('requests').update({missing_docs:updated}).eq('id',reqId);
+    // إظهار رسالة نجاح
+    const msg=document.getElementById('missing-upload-msg');
+    msg.style.display='block';
+    msg.textContent='✅ تم رفع "'+docName+'" بنجاح. سيقوم الموظف بمراجعته قريباً.';
+  }
+}
+
+// ══ طريقة الدفع ══
+// ⚠ استبدل هذه القيم بمعلوماتك الحقيقية
+const PAYMENT_INFO={
+  baridimob: { rip:'007999990005908161', name:'بريدي موب — مسح الـ RIB أو التحويل' },
+  ccp:       { account:'5908161 / 48',      name:'حساب بريدي CCP — المركز: الجزائر' },
+};
+
+function selectPayMethod(el,method){
+  document.querySelectorAll('.pay-method').forEach(m=>m.classList.remove('sel'));
+  el.classList.add('sel');
+  const info=PAYMENT_INFO[method];
+  const details=document.getElementById('pay-details');
+  if(method==='office'){
+    details.style.display='block';
+    details.innerHTML=`<div style="font-size:13px;color:var(--muted);padding:.75rem;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border)">
+      🏢 يمكنك الدفع عند حضورك لاستلام الوثيقة من المكتب.
+    </div>`;
+    return;
+  }
+  if(!info){details.style.display='none';return;}
+  details.style.display='block';
+  details.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:.5rem">${info.name}</div>
+      ${info.rip?`
+        <div style="font-size:13px;margin-bottom:.5rem">رقم RIB:</div>
+        <div style="font-family:monospace;font-size:15px;font-weight:700;background:var(--bg);padding:.5rem 1rem;border-radius:6px;direction:ltr;letter-spacing:1px;display:inline-block;margin-bottom:.75rem">${info.rip}</div>
+        <div id="qr-baridimob" style="margin:8px 0"></div>`:''}
+      ${info.account?`
+        <div style="font-size:13px;margin-bottom:.5rem">رقم الحساب:</div>
+        <div style="font-family:monospace;font-size:15px;font-weight:700;background:var(--bg);padding:.5rem 1rem;border-radius:6px;direction:ltr;letter-spacing:1px;display:inline-block">${info.account}</div>`:''}
+      <div style="margin-top:.85rem;font-size:12px;color:var(--muted)">
+        📸 بعد الدفع، احتفظ بإيصال التحويل وأحضره معك عند استلام الوثيقة.
+      </div>
+    </div>`;
+}
+
+// ══ تحميل تلقائي من URL ══
 window.addEventListener('DOMContentLoaded',()=>{
   const p=new URLSearchParams(window.location.search).get('ref');
   if(p){document.getElementById('ref-input').value=p;doSearch();}

@@ -181,8 +181,8 @@
           <button class="flt" data-f="done" onclick="setFlt(this)">مكتمل</button>
           <button class="flt" data-f="rejected" onclick="setFlt(this)">مرفوض</button>
         </div>
-        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-          <table class="req-table" id="req-table"></table>
+        <div style="padding:.75rem">
+          <div id="req-table-wrap"></div>
         </div>
       </div>
     </div>
@@ -375,8 +375,9 @@ async function loadFromSupabase(){
     address:  r.address  ||'',
     notes:    r.notes    ||'',
     agentId:  r.agent_id ||null,
-    filePath: r.file_path||null,
-    checklist: r.checklist||[],
+    filePath:    r.file_path||null,
+    checklist:   r.checklist||[],
+    missingDocs: r.missing_docs||[],
   }));
   if(agRes.data) AGENTS = agRes.data.map(a=>({
     id:       a.id,
@@ -595,85 +596,121 @@ function setFlt(btn){
   renderTable();
 }
 function agentName(id){ const a=AGENTS.find(x=>x.id===id); return a?a.name:null; }
+
+// مفاتيح المجموعات المفتوحة
+const openGroups={};
+
 function renderTable(){
   const q=(document.getElementById('srch')||{}).value||'';
   const rows=REQUESTS.filter(r=>{
+    // استبعاد المؤرشفة (مكتمل + استُلم)
+    if(r.status==='done' && r.filePath==='received') return false;
     const mf=curFlt==='all'||r.status===curFlt;
     const ms=!q||r.nameAr.includes(q)||r.nameFr.toLowerCase().includes(q.toLowerCase())||r.id.toLowerCase().includes(q.toLowerCase())||r.service.includes(q);
     return mf&&ms;
   });
-  const tbl=document.getElementById('req-table');
-  if(!rows.length){tbl.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:2rem">لا توجد نتائج</td></tr>';return;}
+  const tbl=document.getElementById('req-table-wrap');
+  if(!rows.length){
+    tbl.innerHTML='<div style="text-align:center;color:var(--muted);padding:2rem;font-size:13px">لا توجد نتائج</div>';
+    return;
+  }
 
   const groups={};
   rows.forEach(r=>{ const s=r.service||'غير محدد'; if(!groups[s])groups[s]=[]; groups[s].push(r); });
 
-  const agOpts=AGENTS.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
-
-  let html=`<thead><tr>
-    <th>الزبون</th>
-    <th>الحالة</th>
-    <th>الموظف المكلف</th>
-    <th>مسار الملف</th>
-    <th>إجراءات</th>
-  </tr></thead><tbody>`;
-
-  Object.entries(groups).forEach(([svcName,list])=>{
-    html+=`<tr><td colspan="5" style="background:var(--bg);font-size:12px;font-weight:700;color:var(--accent);padding:.6rem 1rem;border-bottom:1px solid var(--border)">
-      ${svcName} <span style="font-weight:400;color:var(--muted)">(${list.length})</span>
-    </td></tr>`;
-
-    list.forEach(r=>{
-      const isDone=r.status==='done';
-      html+=`<tr id="row-${r.id}">
-        <td>
-          <div class="req-name">${r.nameAr}</div>
-          <div class="req-ref">${r.id}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">${r.date}</div>
-        </td>
-        <td>
-          <select onchange="inlineUpdate('${r.id}','status',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer">
-            <option value="new"      ${r.status==='new'?'selected':''}>🔵 جديد</option>
-            <option value="review"   ${r.status==='review'?'selected':''}>🟡 قيد المراجعة</option>
-            <option value="done"     ${r.status==='done'?'selected':''}>🟢 مكتمل</option>
-            <option value="rejected" ${r.status==='rejected'?'selected':''}>🔴 مرفوض</option>
-          </select>
-        </td>
-        <td>
-          <select onchange="inlineUpdate('${r.id}','agent',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;max-width:150px">
-            <option value="">— غير مُعيَّن —</option>
-            ${AGENTS.map(a=>`<option value="${a.id}" ${r.agentId===a.id?'selected':''}>${a.name}</option>`).join('')}
-          </select>
-        </td>
-        <td>
-          <select onchange="inlineUpdate('${r.id}','filePath',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer">
-            <option value=""         ${!r.filePath?'selected':''}>— غير محدد —</option>
-            <option value="in-office"  ${r.filePath==='in-office'?'selected':''}>📁 في المحل</option>
-            <option value="with-agent" ${r.filePath==='with-agent'?'selected':''}>👤 عند الموظف</option>
-            <option value="received"   ${r.filePath==='received'?'selected':''}>✅ استُلم</option>
-          </select>
-        </td>
-        <td style="white-space:nowrap">
-          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
-            <!-- رفع استمارة من الموظف -->
-            <label class="btn btn-ghost btn-sm" style="cursor:pointer;padding:6px 10px" title="رفع استمارة">
-              📤
-              <input type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="quickUploadAgentFile('${r.id}',this)">
-            </label>
-            <!-- عرض ملفات الزبون والموظف -->
-            <button class="btn btn-ghost btn-sm" onclick="viewAgentFile('${r.id}')" title="عرض ملفات PDF" style="padding:6px 10px">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="#c0392b"><path d="M20 2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>
-            </button>
-            <!-- حذف الطلب -->
-            <button class="btn btn-danger btn-sm" onclick="deleteReq('${r.id}')" style="padding:6px 10px" title="حذف الطلب">🗑</button>
+  let html='';
+  Object.entries(groups).forEach(([svcName,list],gi)=>{
+    const key='tbl-'+gi;
+    const isOpen=openGroups[key]!==false; // مفتوح بالافتراضي
+    const svcIcon=SERVICES.find(s=>s.name===svcName)?.icon||'📄';
+    html+=`
+      <div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)">
+        <!-- رأس المجموعة -->
+        <div onclick="toggleTblGroup('${key}')" style="display:flex;align-items:center;justify-content:space-between;padding:.85rem 1.25rem;cursor:pointer;background:var(--bg);user-select:none" id="thead-${key}">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:18px">${svcIcon}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--accent)">${svcName}</span>
+            <span style="font-size:11px;color:var(--muted);background:var(--surface);padding:2px 10px;border-radius:12px;border:1px solid var(--border)">${list.length}</span>
           </div>
-        </td>
-      </tr>`;
-    });
+          <span id="tog-${key}" style="font-size:20px;color:var(--muted);transition:transform .2s;line-height:1">${isOpen?'−':'+'}</span>
+        </div>
+        <!-- صفوف المجموعة -->
+        <div id="tbody-${key}" style="display:${isOpen?'block':'none'}">
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:var(--bg)">
+              <th style="text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.5rem 1rem;border-bottom:1px solid var(--border)">الزبون</th>
+              <th style="text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.5rem 1rem;border-bottom:1px solid var(--border)">الحالة</th>
+              <th style="text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.5rem 1rem;border-bottom:1px solid var(--border)">الموظف</th>
+              <th style="text-align:right;font-size:11px;font-weight:700;color:var(--muted);padding:.5rem 1rem;border-bottom:1px solid var(--border)">مسار الملف</th>
+              <th style="padding:.5rem 1rem;border-bottom:1px solid var(--border)"></th>
+            </tr></thead>
+            <tbody>
+              ${list.map(r=>`<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:.75rem 1rem">
+                  <div style="font-weight:600;font-size:13px">${r.nameAr}</div>
+                  <div style="font-size:11px;color:var(--muted);direction:ltr">${r.id}</div>
+                  <div style="font-size:11px;color:var(--muted)">${r.date}</div>
+                </td>
+                <td style="padding:.75rem 1rem">
+                  <select onchange="inlineUpdate('${r.id}','status',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer">
+                    <option value="new"      ${r.status==='new'?'selected':''}>🔵 جديد</option>
+                    <option value="review"   ${r.status==='review'?'selected':''}>🟡 قيد المراجعة</option>
+                    <option value="done"     ${r.status==='done'?'selected':''}>🟢 مكتمل</option>
+                    <option value="rejected" ${r.status==='rejected'?'selected':''}>🔴 مرفوض</option>
+                  </select>
+                </td>
+                <td style="padding:.75rem 1rem">
+                  <select onchange="inlineUpdate('${r.id}','agent',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;max-width:140px">
+                    <option value="">— غير مُعيَّن —</option>
+                    ${AGENTS.map(a=>`<option value="${a.id}" ${r.agentId===a.id?'selected':''}>${a.name}</option>`).join('')}
+                  </select>
+                </td>
+                <td style="padding:.75rem 1rem">
+                  <select onchange="inlineUpdate('${r.id}','filePath',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer">
+                    <option value=""          ${!r.filePath?'selected':''}>— غير محدد —</option>
+                    <option value="in-office"  ${r.filePath==='in-office'?'selected':''}>📁 في المحل</option>
+                    <option value="with-agent" ${r.filePath==='with-agent'?'selected':''}>👤 عند الموظف</option>
+                    <option value="received"   ${r.filePath==='received'?'selected':''}>✅ استُلم</option>
+                  </select>
+                </td>
+                <td style="padding:.75rem 1rem;white-space:nowrap">
+                  <div style="display:flex;gap:4px;align-items:center">
+                    <button class="btn btn-ghost btn-sm" onclick="openReq('${r.id}')">عرض</button>
+                    <label class="btn btn-ghost btn-sm" style="cursor:pointer;padding:6px 10px" title="رفع استمارة">
+                      📤<input type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="quickUploadAgentFile('${r.id}',this)">
+                    </label>
+                    <button class="btn btn-ghost btn-sm" onclick="viewAgentFile('${r.id}')" style="padding:6px 10px">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="#c0392b"><path d="M20 2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteReq('${r.id}')" style="padding:6px 10px">🗑</button>
+                  </div>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>`;
   });
-  html+='</tbody>';
   tbl.innerHTML=html;
+}
+
+function toggleTblGroup(key){
+  const body=document.getElementById('tbody-'+key);
+  const tog=document.getElementById('tog-'+key);
+  const isOpen=body.style.display==='none';
+  body.style.display=isOpen?'block':'none';
+  tog.textContent=isOpen?'−':'+';
+  openGroups[key]=isOpen;
+}
+
+async function restoreFromArchive(id){
+  if(!confirm('إرجاع هذا الطلب إلى قائمة المتابعة؟'))return;
+  const {error}=await sb.from('requests').update({status:'review',file_path:null}).eq('id',id);
+  if(error){alert('خطأ: '+error.message);return;}
+  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:'review',filePath:null}:r);
+  renderStats(); renderTable(); renderArchive();
 }
 
 async function inlineUpdate(id, field, value){
@@ -701,8 +738,11 @@ async function inlineUpdate(id, field, value){
     };
   });
   renderStats();
-  // تحديث الصف فقط بدون إعادة رسم الجدول كله
   renderTable();
+  // إذا أصبح الطلب مؤرشفاً أو استُرجع — حدّث الأرشيف
+  const updated=REQUESTS.find(x=>x.id===id);
+  if(updated&&updated.status==='done'&&updated.filePath==='received') renderArchive();
+  if(field==='status'&&value==='review') renderArchive();
 }
 
 // ══ Request modal ══
@@ -728,6 +768,17 @@ function openReq(id){
       <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:.6rem">✅ قائمة التحقق من الوثائق</div>
       ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;cursor:pointer;border-bottom:0.5px dashed var(--border)">
         <input type="checkbox" class="doc-chk" data-i="${i}" ${checked.includes(i)?'checked':''} style="width:15px;height:15px;accent-color:var(--accent)"> ${d}
+      </label>`).join('')}
+    </div>`;})()}
+
+    <!-- تحديد الملفات الناقصة -->
+    ${(()=>{const svc=SERVICES.find(s=>s.name===r.service);if(!svc||!svc.docs.length)return '';
+    const missing=r.missingDocs||[];
+    return `<div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:.85rem 1rem;margin-bottom:1.25rem">
+      <div style="font-size:12px;font-weight:700;color:#8a5a00;margin-bottom:.6rem">⚠ تحديد الملفات الناقصة (ستظهر للزبون في صفحة المتابعة)</div>
+      ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer">
+        <input type="checkbox" class="missing-chk" data-doc="${d}" ${missing.includes(d)?'checked':''} style="width:15px;height:15px;accent-color:#d4a017">
+        <span>${d}</span>
       </label>`).join('')}
     </div>`;})()}
 
@@ -798,7 +849,11 @@ async function saveReq(id){
   const fp=document.getElementById('modal-file-path').value;
   const autoStatus=(ag&&st==='new')?'review':st;
 
-  // قراءة حالة الـ checklist
+  // قراءة الملفات الناقصة
+  const missingChks=document.querySelectorAll('.missing-chk');
+  const missingDocs=[...missingChks].filter(c=>c.checked).map(c=>c.dataset.doc);
+
+  // قراءة الـ checklist
   const chkBoxes=document.querySelectorAll('.doc-chk');
   const checklist=[...chkBoxes].filter(c=>c.checked).map(c=>parseInt(c.dataset.i));
 
@@ -810,14 +865,14 @@ async function saveReq(id){
   }
 
   const {error}=await sb.from('requests').update({
-    status:    autoStatus,
-    agent_id:  ag?parseInt(ag):null,
-    file_path: fp||null,
+    status:       autoStatus,
+    agent_id:     ag?parseInt(ag):null,
+    file_path:    fp||null,
+    missing_docs: missingDocs,
   }).eq('id',id);
   if(error){alert('خطأ: '+error.message);return;}
 
-  // حفظ checklist محلياً في REQUESTS
-  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:autoStatus,agentId:ag?parseInt(ag):null,filePath:fp,checklist}:r);
+  REQUESTS=REQUESTS.map(r=>r.id===id?{...r,status:autoStatus,agentId:ag?parseInt(ag):null,filePath:fp,checklist,missingDocs}:r);
   closeModal('req-modal'); renderStats(); renderTable();
 }
 
@@ -1198,6 +1253,7 @@ function renderArchive(){
               <button class="btn btn-ghost btn-sm" onclick="viewAgentFile('${r.id}')">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="#c0392b"><path d="M20 2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>
               </button>
+              <button class="btn btn-ghost btn-sm" onclick="restoreFromArchive('${r.id}')" title="إرجاع للمتابعة" style="color:var(--accent)">↩ إرجاع</button>
             </div>
           </div>`).join('')}
       </div>
