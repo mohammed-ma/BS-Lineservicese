@@ -67,14 +67,24 @@
   #qr-fab{bottom:16px;left:16px;width:44px;height:44px}
   .qr-section{width:100%;display:block}
 }
+/* Payment styles */
+.pay-methods{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:.75rem}
+.pay-opt{border:2px solid var(--border);border-radius:var(--radius-sm);padding:1rem;cursor:pointer;text-align:center;background:var(--surface);transition:all .2s}
+.pay-opt:hover{border-color:var(--accent-mid);background:var(--accent-light)}
+.pay-opt.sel{border-color:var(--accent);background:var(--accent-light);box-shadow:0 0 0 3px rgba(26,107,74,.1)}
+.pay-opt-icon{font-size:26px;margin-bottom:5px}
+.pay-opt-name{font-size:13px;font-weight:600}
+.pay-opt-desc{font-size:11px;color:var(--muted)}
+.rib-box{background:var(--bg);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);padding:.75rem 1rem;font-family:monospace;font-size:15px;font-weight:700;letter-spacing:2px;direction:ltr;text-align:center;margin:.75rem 0;color:var(--accent);cursor:pointer;position:relative}
+.rib-box:active{background:var(--accent-light)}
+.receipt-zone{border:2px dashed var(--warn-border);border-radius:var(--radius-sm);padding:1.1rem;text-align:center;cursor:pointer;background:var(--warn-bg);transition:all .2s;display:block;margin-top:8px}
+.receipt-zone:hover{border-color:var(--accent);background:var(--accent-light)}
+.receipt-zone.has-file{border-color:var(--accent);background:var(--accent-light)}
+.receipt-zone input{display:none}
+
 .pg{display:none}
 .pg.active{display:block;animation:fadeIn .3s ease}
-
-/* Print */
-@media print{
-  .site-header,.steps-bar,.btn-row{display:none!important}
-  .card{box-shadow:none;border:1px solid #ccc}
-}
+@media print{.site-header,.steps-bar,.btn-row{display:none!important}.card{box-shadow:none;border:1px solid #ccc}}
 </style>
 </head>
 <body>
@@ -259,10 +269,47 @@
           <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:.75rem;letter-spacing:.5px">الخدمة والوثائق</div>
           <div id="rev-service"></div>
         </div>
+
+        <!-- قسم الدفع -->
+        <div id="pay-section" style="display:none;margin-top:1.25rem">
+          <div style="height:1px;background:var(--border);margin-bottom:1rem"></div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:.75rem;letter-spacing:.5px">طريقة الدفع</div>
+          <div style="background:var(--info-bg);border:1px solid var(--info-border);border-radius:var(--radius-sm);padding:.75rem 1rem;font-size:13px;margin-bottom:.75rem">
+            💰 رسوم الخدمة: <strong id="pay-amount-display" style="color:var(--accent)">—</strong>
+          </div>
+          <div class="pay-methods">
+            <div class="pay-opt" onclick="selectPay(this,'office')">
+              <div class="pay-opt-icon">🏢</div>
+              <div class="pay-opt-name">عند الاستلام</div>
+              <div class="pay-opt-desc">الدفع في المكتب</div>
+            </div>
+            <div class="pay-opt" onclick="selectPay(this,'baridimob')">
+              <div class="pay-opt-icon">📱</div>
+              <div class="pay-opt-name">بريدي موب</div>
+              <div class="pay-opt-desc">BaridiMob</div>
+            </div>
+          </div>
+          <!-- تفاصيل بريدي موب -->
+          <div id="pay-baridimob-detail" style="display:none;margin-top:1rem;animation:fadeIn .25s ease">
+            <div style="font-size:13px;font-weight:600;margin-bottom:.5rem">رقم الـ RIB للتحويل:</div>
+            <div class="rib-box" onclick="copyRIB()" title="اضغط للنسخ">
+              <!-- ⚠ ضع رقم RIB الحقيقي هنا -->
+              00799999001234567890
+              <div style="font-size:10px;color:var(--muted);font-weight:400;letter-spacing:0;margin-top:2px">اضغط للنسخ 📋</div>
+            </div>
+            <div id="rib-copied" style="font-size:11px;color:var(--accent);display:none;margin-bottom:.5rem">✓ تم نسخ الـ RIB</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:.75rem">بعد التحويل، ارفع وصل الدفع أدناه:</div>
+            <label class="receipt-zone" id="receipt-zone">
+              <input type="file" id="receipt-file" accept=".pdf,.jpg,.jpeg,.png" onchange="receiptPicked(this)">
+              <div style="font-size:20px;margin-bottom:4px">📄</div>
+              <div style="font-size:12px;color:var(--muted)" id="receipt-lbl">اضغط لرفع وصل الدفع</div>
+            </label>
+          </div>
+        </div>
       </div>
     </div>
     <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:10px">
-      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px" onclick="submitRequest()">✓ تأكيد وإرسال الطلب</button>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px" id="submit-btn" onclick="submitRequest()">✓ تأكيد وإرسال الطلب</button>
       <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="backToStep3()">→ رجوع للتصحيح</button>
     </div>
   </div>
@@ -428,32 +475,144 @@ function goTo(n){
 }
 
 function goToReview(){
-  // بناء محتوى صفحة المراجعة
   const rows=[
-    ['الخدمة',      sel?sel.name:'—'],
+    ['الخدمة',         sel?sel.name:'—'],
     ['الاسم بالعربية', document.getElementById('f-name-ar').value||'—'],
-    ['Nom français', document.getElementById('f-name-fr').value||'—'],
-    ['NIN',          document.getElementById('f-nin').value||'—'],
-    ['تاريخ الميلاد',document.getElementById('f-dob').value||'—'],
-    ['الهاتف',       document.getElementById('f-phone').value||'—'],
-    ['العنوان',      document.getElementById('f-address').value||'—'],
-    ['البريد',       document.getElementById('f-email').value||'—'],
-    ['الغرض',        document.getElementById('f-purpose').value||'—'],
-    ['ملاحظات',      document.getElementById('f-notes').value||'—'],
+    ['Nom français',   document.getElementById('f-name-fr').value||'—'],
+    ['NIN',            document.getElementById('f-nin').value||'—'],
+    ['تاريخ الميلاد',  document.getElementById('f-dob').value||'—'],
+    ['الهاتف',         document.getElementById('f-phone').value||'—'],
+    ['العنوان',        document.getElementById('f-address').value||'—'],
+    ['البريد',         document.getElementById('f-email').value||'—'],
+    ['الغرض',          document.getElementById('f-purpose').value||'—'],
+    ['ملاحظات',        document.getElementById('f-notes').value||'—'],
   ];
-  const rp=document.getElementById('rev-personal');
-  rp.innerHTML=rows.map(([l,v])=>`
+  document.getElementById('rev-personal').innerHTML=rows.map(([l,v])=>`
     <div style="font-size:12px;color:var(--muted)">${l}</div>
     <div style="font-size:13px;font-weight:600;${l==='NIN'||l==='Nom français'?'direction:ltr;text-align:right':''}">${v}</div>
   `).join('');
-  const rs=document.getElementById('rev-service');
-  rs.innerHTML=`<div style="font-size:14px;font-weight:600">${sel?sel.icon+' '+sel.name:'—'}</div>
-  <div style="margin-top:8px;font-size:12px;color:var(--muted)">${sel?sel.docs.map(d=>'📎 '+d).join(' · '):''}
-  </div>`;
+  document.getElementById('rev-service').innerHTML=`
+    <div style="font-size:14px;font-weight:600">${sel?sel.icon+' '+sel.name:'—'}</div>
+    <div style="margin-top:8px;font-size:12px;color:var(--muted)">${sel?sel.docs.map(d=>'📎 '+d).join(' · '):''}</div>`;
+
+  // إظهار قسم الدفع إذا كانت الخدمة لها ثمن
+  const paySection=document.getElementById('pay-section');
+  if(sel&&sel.price&&sel.price!='0'&&sel.priceVisible!==false){
+    document.getElementById('pay-amount-display').textContent=sel.price+' دج';
+    paySection.style.display='block';
+  } else {
+    paySection.style.display='none';
+    selectedPayMethod='office'; // افتراضي بدون دفع
+  }
   goTo(35);
 }
 
-function backToStep3(){goTo(3);}
+// ══ الدفع ══
+// ⚠ ضع رقم RIB الحقيقي هنا
+const MY_RIB='00799999000590816148';
+let selectedPayMethod='office';
+let receiptFile=null;
+
+function selectPay(el,method){
+  document.querySelectorAll('.pay-opt').forEach(o=>o.classList.remove('sel'));
+  el.classList.add('sel');
+  selectedPayMethod=method;
+  const bmd=document.getElementById('pay-baridimob-detail');
+  bmd.style.display=method==='baridimob'?'block':'none';
+  // تحديث نص الزر
+  const btn=document.getElementById('submit-btn');
+  btn.textContent=method==='baridimob'?'✓ إرسال الطلب مع وصل الدفع':'✓ تأكيد وإرسال الطلب';
+}
+
+function copyRIB(){
+  navigator.clipboard.writeText(MY_RIB).then(()=>{
+    const el=document.getElementById('rib-copied');
+    el.style.display='block';
+    setTimeout(()=>el.style.display='none',2500);
+  });
+}
+
+function receiptPicked(inp){
+  receiptFile=inp.files[0]||null;
+  if(receiptFile){
+    document.getElementById('receipt-zone').classList.add('has-file');
+    document.getElementById('receipt-lbl').textContent='✓ '+receiptFile.name;
+  }
+}
+
+async function submitRequest(){
+  // التحقق من وصل الدفع إذا اختار بريدي موب
+  if(selectedPayMethod==='baridimob'&&!receiptFile){
+    alert('⚠ يرجى رفع وصل الدفع قبل الإرسال');
+    return;
+  }
+
+  const ref='ADM-2026-'+(1000+Math.floor(Math.random()*9000));
+  const now=new Date();
+  const btn=document.getElementById('submit-btn');
+  btn.disabled=true;
+
+  // ── 1. رفع وثائق الطلب
+  const fileKeys=Object.keys(uploadedFiles);
+  for(let i=0;i<fileKeys.length;i++){
+    const file=uploadedFiles[fileKeys[i]];
+    const ext=file.name.split('.').pop().toLowerCase();
+    btn.textContent=`رفع الملف ${i+1}/${fileKeys.length}...`;
+    await sb.storage.from('documents').upload(`${ref}/doc-${parseInt(fileKeys[i])+1}.${ext}`,file,{upsert:true});
+  }
+
+  // ── 2. رفع وصل الدفع إن وجد
+  if(receiptFile){
+    btn.textContent='رفع وصل الدفع...';
+    const ext=receiptFile.name.split('.').pop().toLowerCase();
+    await sb.storage.from('documents').upload(`${ref}/receipt.${ext}`,receiptFile,{upsert:true});
+  }
+
+  // ── 3. حفظ الطلب في Supabase
+  btn.textContent='جاري الحفظ...';
+  const request={
+    id:             ref,
+    service_name:   sel?sel.name:'',
+    service_price:  sel?.price||null,
+    name_ar:        document.getElementById('f-name-ar').value.trim(),
+    name_fr:        document.getElementById('f-name-fr').value.trim(),
+    nin:            document.getElementById('f-nin').value.trim(),
+    phone:          document.getElementById('f-phone').value.trim(),
+    address:        document.getElementById('f-address').value.trim(),
+    email:          document.getElementById('f-email').value.trim(),
+    purpose:        document.getElementById('f-purpose').value,
+    notes:          document.getElementById('f-notes').value.trim(),
+    status:         'new',
+    agent_id:       null,
+    payment_method: selectedPayMethod,
+    payment_status: selectedPayMethod==='baridimob'?'pending_verification':'pending',
+    created_at:     now.toISOString(),
+  };
+
+  const {error}=await sb.from('requests').insert(request);
+  if(error){
+    btn.disabled=false;
+    btn.textContent='✓ تأكيد وإرسال الطلب';
+    alert('حدث خطأ: '+error.message);
+    return;
+  }
+
+  // ── 4. صفحة التأكيد
+  document.getElementById('ref-num').textContent    = ref;
+  document.getElementById('sum-svc').textContent    = request.service_name||'—';
+  document.getElementById('sum-name').textContent   = request.name_ar||'—';
+  document.getElementById('sum-namefr').textContent = request.name_fr||'—';
+  document.getElementById('sum-nin').textContent    = request.nin||'—';
+  document.getElementById('sum-phone').textContent  = request.phone||'—';
+  document.getElementById('sum-date').textContent   = now.toLocaleDateString('ar-DZ');
+
+  document.getElementById('qrcode').innerHTML='';
+  const trackURL=window.location.origin+window.location.pathname.replace('index.html','')+'tracking.html?ref='+ref;
+  new QRCode(document.getElementById('qrcode'),{text:trackURL,width:140,height:140,colorDark:'#1a6b4a',colorLight:'#ffffff'});
+
+  uploadedFiles={}; receiptFile=null; selectedPayMethod='office';
+  goTo(4);
+}
 
 // NIN validation (18 digits)
 function checkNIN(inp){
@@ -542,71 +701,6 @@ function fp(i,inp){
   document.getElementById('ul-'+i).textContent=`✓  ${file.name} (${sizeMB} MB)`;
 }
 
-async function submitRequest(){
-  const ref='ADM-2026-'+(1000+Math.floor(Math.random()*9000));
-  const now=new Date();
-
-  const btn=document.querySelector('#pg35 .btn-primary');
-  btn.disabled=true;
-
-  // ── 1. رفع الملفات إلى Supabase Storage
-  const fileUrls=[];
-  const fileKeys=Object.keys(uploadedFiles);
-  for(let i=0;i<fileKeys.length;i++){
-    const file=uploadedFiles[fileKeys[i]];
-    const ext=file.name.split('.').pop().toLowerCase();
-    const path=`${ref}/doc-${parseInt(fileKeys[i])+1}.${ext}`; // اسم بسيط بدون عربية
-    btn.textContent=`رفع الملف ${i+1}/${fileKeys.length}...`;
-    const {error:upErr}=await sb.storage.from('documents').upload(path,file,{upsert:true});
-    if(upErr){
-      console.warn('تحذير رفع الملف:',upErr.message);
-    } else {
-      fileUrls.push(path);
-    }
-  }
-
-  // ── 2. حفظ بيانات الطلب
-  btn.textContent='جاري الحفظ...';
-  const request={
-    id:           ref,
-    service_name: sel?sel.name:'',
-    name_ar:      document.getElementById('f-name-ar').value.trim(),
-    name_fr:      document.getElementById('f-name-fr').value.trim(),
-    nin:          document.getElementById('f-nin').value.trim(),
-    phone:        document.getElementById('f-phone').value.trim(),
-    address:      document.getElementById('f-address').value.trim(),
-    email:        document.getElementById('f-email').value.trim(),
-    purpose:      document.getElementById('f-purpose').value,
-    notes:        document.getElementById('f-notes').value.trim(),
-    status:       'new',
-    agent_id:     null,
-    created_at:   now.toISOString(),
-  };
-
-  const {error}=await sb.from('requests').insert(request);
-  if(error){
-    btn.disabled=false;
-    btn.textContent='✓ تأكيد الإرسال';
-    alert('حدث خطأ: '+error.message);
-    return;
-  }
-
-  // ── 3. تحديث صفحة التأكيد
-  document.getElementById('ref-num').textContent    = ref;
-  document.getElementById('sum-svc').textContent    = request.service_name||'—';
-  document.getElementById('sum-name').textContent   = request.name_ar||'—';
-  document.getElementById('sum-namefr').textContent = request.name_fr||'—';
-  document.getElementById('sum-nin').textContent    = request.nin||'—';
-  document.getElementById('sum-phone').textContent  = request.phone||'—';
-  document.getElementById('sum-date').textContent   = now.toLocaleDateString('ar-DZ');
-
-  document.getElementById('qrcode').innerHTML='';
-  const trackURL=window.location.origin+window.location.pathname.replace('index.html','')+'tracking.html?ref='+ref;
-  new QRCode(document.getElementById('qrcode'),{text:trackURL,width:140,height:140,colorDark:'#1a6b4a',colorLight:'#ffffff'});
-
-  uploadedFiles={};
-  goTo(4);
-}
 
 function restartApp(){
   sel=null;
