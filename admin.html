@@ -436,41 +436,47 @@ async function refreshData(){
   if(btn){btn.textContent='🔄 تحديث';btn.disabled=false;}
 }
 
-async function viewAgentFile(reqId){
-  // جلب قائمة الملفات وعرض ملفات الموظف فقط (تبدأ بـ agent-)
+async function viewAllFiles(reqId){
+  const el=document.getElementById('files-list');
+  el.innerHTML='<span style="font-size:12px;color:var(--muted)">⏳ جاري التحميل...</span>';
   const {data,error}=await sb.storage.from('documents').list(reqId);
-  if(error||!data||!data.length){alert('لا توجد ملفات للموظف');return;}
-  const agentFiles=data.filter(f=>f.name.startsWith('agent-'));
-  if(!agentFiles.length){alert('لم يرفع الموظف أي ملف لهذا الطلب بعد');return;}
-  // فتح الملفات في تبويبات جديدة
+  if(error||!data||!data.length){
+    el.innerHTML='<span style="font-size:12px;color:var(--muted)">لا توجد ملفات</span>';
+    return;
+  }
+  const items=await Promise.all(data.map(async f=>{
+    const {data:signed}=await sb.storage.from('documents').createSignedUrl(reqId+'/'+f.name,3600);
+    // تصنيف الملف
+    let icon='📄', label=f.name, badge='';
+    if(f.name.startsWith('agent-'))  { icon='👤'; badge='<span style="font-size:10px;background:var(--info-bg);color:#1a4d8f;padding:1px 6px;border-radius:8px;border:1px solid var(--info-border)">موظف</span>'; }
+    if(f.name.startsWith('receipt')) { icon='💳'; badge='<span style="font-size:10px;background:var(--warn-bg);color:#8a5a00;padding:1px 6px;border-radius:8px;border:1px solid var(--warn-border)">وصل دفع</span>'; }
+    if(f.name.startsWith('missing')) { icon='📎'; badge='<span style="font-size:10px;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:8px;border:1px solid var(--accent-border)">ملف ناقص</span>'; }
+    if(f.name.startsWith('doc-'))    { icon='📋'; badge='<span style="font-size:10px;background:var(--bg);color:var(--muted);padding:1px 6px;border-radius:8px;border:1px solid var(--border)">وثيقة</span>'; }
+    return {icon,label,badge,url:signed?.signedUrl||null};
+  }));
+  el.innerHTML=`<div style="margin-top:6px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+    ${items.map(f=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px">
+        <span>${f.icon}</span>
+        <span style="flex:1;color:var(--muted)">${f.label}</span>
+        ${f.badge}
+        ${f.url?`<a href="${f.url}" target="_blank" class="btn btn-ghost btn-sm" style="padding:3px 10px;font-size:11px">فتح ↗</a>`:'<span style="color:var(--danger);font-size:11px">خطأ</span>'}
+      </div>`).join('')}
+  </div>`;
+}
+
+async function viewAgentFile(reqId){
+  const {data,error}=await sb.storage.from('documents').list(reqId);
+  if(error||!data||!data.length){alert('لا توجد ملفات');return;}
+  const agentFiles=data.filter(f=>f.name.startsWith('agent-')||f.name.startsWith('receipt'));
+  if(!agentFiles.length){alert('لا توجد ملفات للموظف أو وصل دفع');return;}
   for(const f of agentFiles){
     const {data:signed}=await sb.storage.from('documents').createSignedUrl(reqId+'/'+f.name,3600);
     if(signed?.signedUrl) window.open(signed.signedUrl,'_blank');
   }
 }
 
-async function viewFiles(reqId){
-  const el=document.getElementById('files-list');
-  el.innerHTML='<span style="font-size:12px;color:var(--muted)">⏳ جاري التحميل...</span>';
-  const {data,error}=await sb.storage.from('documents').list(reqId);
-  if(error||!data||data.length===0){
-    el.innerHTML='<span style="font-size:12px;color:var(--muted)">لا توجد ملفات مرفوعة لهذا الطلب</span>';
-    return;
-  }
-  // توليد signed URLs صالحة لمدة ساعة
-  const items = await Promise.all(data.map(async f=>{
-    const {data:signed}=await sb.storage.from('documents')
-      .createSignedUrl(reqId+'/'+f.name, 3600);
-    return {name:f.name, url: signed?.signedUrl||null};
-  }));
-  el.innerHTML=items.map(f=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
-      <span>📄 ${f.name}</span>
-      ${f.url
-        ? `<a href="${f.url}" target="_blank" class="btn btn-ghost btn-sm" style="padding:3px 10px">فتح ↗</a>`
-        : `<span style="color:var(--danger)">خطأ في الرابط</span>`}
-    </div>`).join('');
-}
+async function viewFiles(reqId){ await viewAllFiles(reqId); }
 
 function onAgentChange(){
   const ag=document.getElementById('modal-agent').value;
@@ -751,82 +757,87 @@ function openReq(id){
   const agentOptions=AGENTS.map(a=>`<option value="${a.id}" ${r.agentId===a.id?'selected':''}>${a.name} — ${a.role}</option>`).join('');
   document.getElementById('modal-title').textContent=r.service+' · '+r.id;
   document.getElementById('modal-body').innerHTML=`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem">
-      <div><div class="text-sm text-muted">الاسم بالعربية</div><div style="font-weight:600">${r.nameAr}</div></div>
-      <div><div class="text-sm text-muted">Nom en français</div><div style="font-weight:600;direction:ltr">${r.nameFr}</div></div>
-      <div><div class="text-sm text-muted">NIN</div><div style="font-weight:600;direction:ltr;letter-spacing:1px">${r.nin}</div></div>
-      <div><div class="text-sm text-muted">الهاتف</div><div style="font-weight:600">${r.phone}</div></div>
-      <div><div class="text-sm text-muted">تاريخ التقديم</div><div style="font-weight:600">${r.date}</div></div>
-      <div><div class="text-sm text-muted">الحالة</div><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></div>
+    <!-- معلومات أساسية مضغوطة -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;margin-bottom:1rem;font-size:13px">
+      <div><span style="color:var(--muted);font-size:11px">الاسم</span><div style="font-weight:600">${r.nameAr}</div></div>
+      <div><span style="color:var(--muted);font-size:11px">Nom</span><div style="font-weight:600;direction:ltr">${r.nameFr}</div></div>
+      <div><span style="color:var(--muted);font-size:11px">NIN</span><div style="font-weight:600;direction:ltr;letter-spacing:1px;font-size:12px">${r.nin}</div></div>
+      <div><span style="color:var(--muted);font-size:11px">الهاتف</span><div style="font-weight:600">${r.phone}</div></div>
+      <div><span style="color:var(--muted);font-size:11px">الحالة</span><span class="badge ${SL[r.status].c}">${SL[r.status].t}</span></div>
+      <div><span style="color:var(--muted);font-size:11px">التاريخ</span><div style="font-weight:600">${r.date}</div></div>
     </div>
-    ${r.notes?`<div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:.75rem;font-size:13px;margin-bottom:1.25rem"><strong>ملاحظات:</strong> ${r.notes}</div>`:''}
+    ${r.notes?`<div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:.6rem .85rem;font-size:12px;margin-bottom:.85rem"><strong>ملاحظات:</strong> ${r.notes}</div>`:''}
 
-    <!-- checklist الوثائق -->
+    <!-- Accordion: قائمة التحقق -->
     ${(()=>{const svc=SERVICES.find(s=>s.name===r.service);if(!svc||!svc.docs.length)return '';
     const checked=r.checklist||[];
-    return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.85rem 1rem;margin-bottom:1.25rem">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:.6rem">✅ قائمة التحقق من الوثائق</div>
-      ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;cursor:pointer;border-bottom:0.5px dashed var(--border)">
-        <input type="checkbox" class="doc-chk" data-i="${i}" ${checked.includes(i)?'checked':''} style="width:15px;height:15px;accent-color:var(--accent)"> ${d}
-      </label>`).join('')}
-    </div>`;})()}
-
-    <!-- تحديد الملفات الناقصة -->
-    ${(()=>{const svc=SERVICES.find(s=>s.name===r.service);if(!svc||!svc.docs.length)return '';
     const missing=r.missingDocs||[];
-    return `<div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:.85rem 1rem;margin-bottom:1.25rem">
-      <div style="font-size:12px;font-weight:700;color:#8a5a00;margin-bottom:.6rem">⚠ تحديد الملفات الناقصة (ستظهر للزبون في صفحة المتابعة)</div>
-      ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer">
-        <input type="checkbox" class="missing-chk" data-doc="${d}" ${missing.includes(d)?'checked':''} style="width:15px;height:15px;accent-color:#d4a017">
-        <span>${d}</span>
-      </label>`).join('')}
-    </div>`;})()}
+    return `<details style="margin-bottom:.75rem;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+      <summary style="padding:.6rem 1rem;background:var(--bg);cursor:pointer;font-size:12px;font-weight:700;list-style:none;display:flex;justify-content:space-between">
+        <span>✅ قائمة التحقق من الوثائق</span><span style="color:var(--muted)">${checked.length}/${svc.docs.length}</span>
+      </summary>
+      <div style="padding:.75rem 1rem">
+        ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;cursor:pointer;border-bottom:0.5px dashed var(--border)">
+          <input type="checkbox" class="doc-chk" data-i="${i}" ${checked.includes(i)?'checked':''} style="width:14px;height:14px;accent-color:var(--accent)"> ${d}
+        </label>`).join('')}
+      </div>
+    </details>
+    <details style="margin-bottom:.75rem;border:1px solid var(--warn-border);border-radius:var(--radius-sm);overflow:hidden">
+      <summary style="padding:.6rem 1rem;background:var(--warn-bg);cursor:pointer;font-size:12px;font-weight:700;list-style:none;display:flex;justify-content:space-between">
+        <span>⚠ الملفات الناقصة (تظهر للزبون)</span><span style="color:#8a5a00">${missing.length} محدد</span>
+      </summary>
+      <div style="padding:.75rem 1rem">
+        ${svc.docs.map((d,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;cursor:pointer">
+          <input type="checkbox" class="missing-chk" data-doc="${d}" ${missing.includes(d)?'checked':''} style="width:14px;height:14px;accent-color:#d4a017"> ${d}
+        </label>`).join('')}
+      </div>
+    </details>`;})()}
 
-    <!-- مسار الملف -->
-    <div class="field" style="margin-bottom:1.25rem">
-      <label>مسار الملف / موقع الطلب</label>
-      <select id="modal-file-path">
-        <option value="" ${!r.filePath?'selected':''}>— غير محدد —</option>
-        <option value="in-office" ${r.filePath==='in-office'?'selected':''}>📁 في المحل</option>
-        <option value="with-agent" ${r.filePath==='with-agent'?'selected':''}>👤 عند الموظف</option>
-        <option value="received" ${r.filePath==='received'?'selected':''}>✅ استُلم من طرف الزبون</option>
-      </select>
-    </div>
-
-    <div style="margin-bottom:1.25rem">
-      <button class="btn btn-ghost btn-sm" onclick="viewFiles('${r.id}')">📎 عرض ملفات الزبون</button>
-      <div id="files-list" style="margin-top:8px"></div>
-    </div>
-    <!-- رفع ملف من الموظف -->
-    <div style="background:var(--info-bg);border:1px solid var(--info-border);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1.25rem">
-      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:#1a4d8f">📤 رفع استمارة أو ملف من الموظف</div>
-      <label style="display:block;border:1.5px dashed var(--info-border);border-radius:var(--radius-sm);padding:.85rem;text-align:center;cursor:pointer;background:var(--surface)" id="agent-upload-zone">
-        <input type="file" id="agent-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="agentFileSelected(this)">
-        <div style="font-size:18px;margin-bottom:4px">📎</div>
-        <div style="font-size:12px;color:var(--muted)" id="agent-file-label">اضغط لاختيار الملف</div>
-      </label>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+    <!-- الملفات والإجراءات في صف واحد -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.85rem">
       <div class="field">
-        <label>تعيين موظف</label>
-        <select id="modal-agent" onchange="onAgentChange()">
-          <option value="">— غير مُعيَّن —</option>
-          ${agentOptions}
+        <label>مسار الملف</label>
+        <select id="modal-file-path" style="font-size:12px;padding:6px 8px">
+          <option value="" ${!r.filePath?'selected':''}>— غير محدد —</option>
+          <option value="in-office"  ${r.filePath==='in-office'?'selected':''}>📁 في المحل</option>
+          <option value="with-agent" ${r.filePath==='with-agent'?'selected':''}>👤 عند الموظف</option>
+          <option value="received"   ${r.filePath==='received'?'selected':''}>✅ استُلم</option>
         </select>
-        <div id="agent-hint" style="font-size:11px;color:var(--accent);margin-top:3px;display:none">
-          ✓ سيتحول الطلب تلقائياً إلى "قيد المراجعة"
-        </div>
       </div>
       <div class="field">
         <label>تغيير الحالة</label>
-        <select id="modal-status">
-          <option value="new"      ${r.status==='new'?'selected':''}>جديد</option>
-          <option value="review"   ${r.status==='review'?'selected':''}>قيد المراجعة</option>
-          <option value="done"     ${r.status==='done'?'selected':''}>مكتمل</option>
-          <option value="rejected" ${r.status==='rejected'?'selected':''}>مرفوض</option>
+        <select id="modal-status" style="font-size:12px;padding:6px 8px">
+          <option value="new"      ${r.status==='new'?'selected':''}>🔵 جديد</option>
+          <option value="review"   ${r.status==='review'?'selected':''}>🟡 قيد المراجعة</option>
+          <option value="done"     ${r.status==='done'?'selected':''}>🟢 مكتمل</option>
+          <option value="rejected" ${r.status==='rejected'?'selected':''}>🔴 مرفوض</option>
         </select>
       </div>
+      <div class="field">
+        <label>تعيين موظف</label>
+        <select id="modal-agent" onchange="onAgentChange()" style="font-size:12px;padding:6px 8px">
+          <option value="">— غير مُعيَّن —</option>
+          ${agentOptions}
+        </select>
+        <div id="agent-hint" style="font-size:11px;color:var(--accent);margin-top:2px;display:none">✓ سيتحول لـ "قيد المراجعة"</div>
+      </div>
+      <div class="field">
+        <label>📤 رفع ملف موظف</label>
+        <label style="display:flex;align-items:center;gap:8px;border:1px dashed var(--info-border);border-radius:var(--radius-sm);padding:6px 10px;cursor:pointer;background:var(--info-bg);font-size:12px" id="agent-upload-zone">
+          <input type="file" id="agent-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="agentFileSelected(this)">
+          📎 <span id="agent-file-label">اختر ملفاً</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- عرض جميع الملفات -->
+    <div>
+      <button class="btn btn-ghost btn-sm" onclick="viewAllFiles('${r.id}')" style="width:100%;justify-content:center">
+        📂 عرض جميع الملفات (وثائق + وصل الدفع + ملف الموظف)
+      </button>
+      <div id="files-list" style="margin-top:8px"></div>
     </div>`;
+
   document.getElementById('modal-foot').innerHTML=`
     <button class="btn btn-ghost" onclick="closeModal('req-modal')">إغلاق</button>
     <button class="btn btn-primary" onclick="saveReq('${id}')">حفظ التغييرات</button>`;
