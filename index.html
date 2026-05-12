@@ -67,6 +67,14 @@
   #qr-fab{bottom:16px;left:16px;width:44px;height:44px}
   .qr-section{width:100%;display:block}
 }
+/* Returning client */
+.client-found{background:var(--accent-light);border:1.5px solid var(--accent-border);border-radius:var(--radius-sm);padding:.85rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:10px;font-size:13px}
+.client-avatar{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
+.saved-doc{display:flex;align-items:center;justify-content:space-between;padding:.6rem .85rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);margin-bottom:6px;font-size:13px;cursor:pointer;transition:.15s}
+.saved-doc:hover{border-color:var(--accent-border);background:var(--accent-light)}
+.saved-doc.selected{border-color:var(--accent);background:var(--accent-light)}
+.saved-doc-check{width:18px;height:18px;accent-color:var(--accent)}
+
 /* Payment styles */
 .pay-methods{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:.75rem}
 .pay-opt{border:2px solid var(--border);border-radius:var(--radius-sm);padding:1rem;cursor:pointer;text-align:center;background:var(--surface);transition:all .2s}
@@ -157,6 +165,14 @@
     <div class="card">
       <div class="card-head"><h2>البيانات الشخصية</h2><span class="text-muted text-sm">الحقول المعلّمة بـ * إلزامية</span></div>
       <div class="card-body">
+        <!-- بانر الزبون المعروف -->
+        <div id="client-banner" style="display:none" class="client-found">
+          <div class="client-avatar" id="client-initial">؟</div>
+          <div>
+            <div style="font-weight:700" id="client-name-display">—</div>
+            <div style="font-size:11px;color:var(--accent)">✓ زبون معروف — تم تعبئة بياناته تلقائياً</div>
+          </div>
+        </div>
         <div class="form-grid">
           <!-- الاسم بالعربية -->
           <div class="field">
@@ -469,7 +485,7 @@ function goTo(n){
     else if(i===curStep){si.classList.add('active');sn.textContent=i;}
     else sn.textContent=i;
   }
-  if(n===3) buildUploads();
+  if(n===3) buildUploads(); // async — لا تنتظر
   cur=n;
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -552,7 +568,17 @@ async function submitRequest(){
   const btn=document.getElementById('submit-btn');
   btn.disabled=true;
 
-  // ── 1. رفع وثائق الطلب
+  // ── 1. نسخ الوثائق المحفوظة من طلبات سابقة
+  const savedKeys=Object.keys(savedUsedDocs);
+  for(let i=0;i<savedKeys.length;i++){
+    const idx=savedKeys[i];
+    const {reqId,name}=savedUsedDocs[idx];
+    btn.textContent=`نسخ الوثيقة ${parseInt(i)+1}/${savedKeys.length}...`;
+    // نسخ الملف من مجلد الطلب القديم للمجلد الجديد
+    await sb.storage.from('documents').copy(`${reqId}/${name}`,`${ref}/doc-${parseInt(idx)+1}.${name.split('.').pop()}`).catch(()=>{});
+  }
+
+  // ── 2. رفع الوثائق الجديدة
   const fileKeys=Object.keys(uploadedFiles);
   for(let i=0;i<fileKeys.length;i++){
     const file=uploadedFiles[fileKeys[i]];
@@ -614,7 +640,10 @@ async function submitRequest(){
   goTo(4);
 }
 
-// NIN validation (18 digits)
+// NIN validation + بحث تلقائي عن الزبون
+let clientData=null; // بيانات الزبون المحفوظة
+let ninLookupTimer=null;
+
 function checkNIN(inp){
   inp.value=inp.value.replace(/\D/g,'');
   const l=inp.value.length;
@@ -625,13 +654,48 @@ function checkNIN(inp){
   if(l===18){
     msg.textContent='✓ رقم التعريف الوطني صحيح';
     msg.style.color='var(--accent)';
+    // بحث تلقائي بعد 400ms
+    clearTimeout(ninLookupTimer);
+    ninLookupTimer=setTimeout(()=>lookupClient(inp.value),400);
   } else if(l>0){
     msg.textContent='يجب أن يتكون من 18 رقماً بالضبط';
     msg.style.color='var(--danger)';
+    clearClientBanner();
   } else {
     msg.textContent='يبدأ عادةً بـ 1 أو 2 ويتضمن تاريخ الميلاد';
     msg.style.color='var(--muted)';
+    clearClientBanner();
   }
+}
+
+async function lookupClient(nin){
+  // البحث في آخر طلب لهذا الزبون
+  const {data,error}=await sb.from('requests')
+    .select('name_ar,name_fr,phone,address,email')
+    .eq('nin',nin)
+    .order('created_at',{ascending:false})
+    .limit(1)
+    .single();
+  if(error||!data){ clearClientBanner(); return; }
+
+  clientData=data;
+  // تعبئة الحقول تلقائياً
+  document.getElementById('f-name-ar').value = data.name_ar||'';
+  document.getElementById('f-name-fr').value = data.name_fr||'';
+  document.getElementById('f-phone').value   = data.phone||'';
+  document.getElementById('f-address').value = data.address||'';
+  document.getElementById('f-email').value   = data.email||'';
+
+  // إظهار البانر
+  const banner=document.getElementById('client-banner');
+  banner.style.display='flex';
+  document.getElementById('client-name-display').textContent=data.name_ar||'—';
+  document.getElementById('client-initial').textContent=(data.name_ar||'؟').charAt(0);
+}
+
+function clearClientBanner(){
+  clientData=null;
+  document.getElementById('client-banner').style.display='none';
 }
 
 function validateStep2(){
@@ -652,21 +716,105 @@ function validateStep2(){
   goTo(3);
 }
 
-function buildUploads(){
-  uploadedFiles = {}; // إعادة تعيين عند كل مرة
-  const c=document.getElementById('upload-fields'); c.innerHTML='';
+async function buildUploads(){
+  uploadedFiles = {};
+  const c=document.getElementById('upload-fields');
+  c.innerHTML='<div style="font-size:12px;color:var(--muted);padding:.5rem 0">⏳ جاري التحضير...</div>';
   if(!sel)return;
+
+  const nin=document.getElementById('f-nin').value.trim();
+
+  // البحث عن وثائق محفوظة مسبقاً لهذا الزبون
+  let savedDocs={};
+  if(nin.length===18){
+    // جلب كل طلبات هذا الزبون للحصول على الملفات المحفوظة
+    const {data:prevReqs}=await sb.from('requests')
+      .select('id')
+      .eq('nin',nin)
+      .order('created_at',{ascending:false})
+      .limit(5);
+
+    if(prevReqs&&prevReqs.length){
+      // جلب الملفات من آخر طلبياته
+      for(const req of prevReqs){
+        const {data:files}=await sb.storage.from('documents').list(req.id);
+        if(files&&files.length){
+          files.filter(f=>f.name.startsWith('doc-')).forEach(f=>{
+            const key=f.name; // doc-1.pdf etc
+            if(!savedDocs[key]) savedDocs[key]={...f, reqId:req.id};
+          });
+        }
+      }
+    }
+  }
+
+  const hasSaved=Object.keys(savedDocs).length>0;
+  c.innerHTML='';
+
   sel.docs.forEach((d,i)=>{
+    const docKey=`doc-${i+1}`;
+    // ابحث عن أي ملف محفوظ يطابق هذا الرقم
+    const matchedKeys=Object.keys(savedDocs).filter(k=>k.startsWith(docKey+'.'));
+    const savedFile=matchedKeys.length?savedDocs[matchedKeys[0]]:null;
+
     c.innerHTML+=`
-      <div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:6px">${d}</div>
-        <label class="upload-zone" id="uz-${i}">
-          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="fp(${i},this)">
-          <div class="uz-icon">📎</div>
-          <div class="uz-lbl" id="ul-${i}">اضغط لاختيار الملف أو اسحبه هنا</div>
-        </label>
+      <div id="doc-wrap-${i}">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px">📎 ${d}</div>
+        ${savedFile?`
+          <div class="saved-doc selected" id="saved-opt-${i}" onclick="toggleSavedDoc(${i},'${savedFile.reqId}','${savedFile.name}')">
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" class="saved-doc-check" id="saved-chk-${i}" checked onchange="toggleSavedDoc(${i},'${savedFile.reqId}','${savedFile.name}')">
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--accent)">✓ وثيقة محفوظة من طلب سابق</div>
+                <div style="font-size:11px;color:var(--muted)">${savedFile.name}</div>
+              </div>
+            </div>
+            <span style="font-size:11px;background:var(--accent-light);color:var(--accent);padding:2px 8px;border-radius:10px;border:1px solid var(--accent-border)">استخدامها</span>
+          </div>
+          <div id="new-upload-${i}" style="display:none;margin-top:6px">
+            <label class="upload-zone" id="uz-${i}">
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="fp(${i},this)">
+              <div class="uz-icon">📎</div>
+              <div class="uz-lbl" id="ul-${i}">رفع وثيقة جديدة بدلاً منها</div>
+            </label>
+          </div>
+        `:`
+          <label class="upload-zone" id="uz-${i}">
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="fp(${i},this)">
+            <div class="uz-icon">📎</div>
+            <div class="uz-lbl" id="ul-${i}">اضغط لاختيار الملف أو اسحبه هنا</div>
+          </label>
+        `}
       </div>`;
   });
+
+  // حفظ الوثائق المحددة تلقائياً
+  savedUsedDocs={};
+  Object.keys(savedDocs).forEach((k,i)=>{
+    const idx=parseInt(k.replace('doc-',''))-1;
+    if(idx>=0) savedUsedDocs[idx]={reqId:savedDocs[k].reqId, name:savedDocs[k].name};
+  });
+}
+
+// وثائق محفوظة مختارة
+let savedUsedDocs={};
+
+function toggleSavedDoc(i, reqId, fileName){
+  const chk=document.getElementById('saved-chk-'+i);
+  const newUp=document.getElementById('new-upload-'+i);
+  const opt=document.getElementById('saved-opt-'+i);
+  if(chk.checked){
+    // استخدام الوثيقة المحفوظة
+    savedUsedDocs[i]={reqId,name:fileName};
+    delete uploadedFiles[i];
+    newUp.style.display='none';
+    opt.classList.add('selected');
+  } else {
+    // رفع وثيقة جديدة
+    delete savedUsedDocs[i];
+    newUp.style.display='block';
+    opt.classList.remove('selected');
+  }
 }
 // ── إعدادات الملفات — غيّرها حسب حاجتك
 const ALLOWED_TYPES = ['image/jpeg','image/png','application/pdf'];
