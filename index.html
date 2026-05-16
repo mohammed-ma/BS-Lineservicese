@@ -682,6 +682,7 @@ async function lookupClient(nin){
   // تعبئة الحقول تلقائياً
   document.getElementById('f-name-ar').value = data.name_ar||'';
   document.getElementById('f-name-fr').value = data.name_fr||'';
+  document.getElementById('f-dob').value = data.name_fr||'';
   document.getElementById('f-phone').value   = data.phone||'';
   document.getElementById('f-address').value = data.address||'';
   document.getElementById('f-email').value   = data.email||'';
@@ -700,8 +701,8 @@ function clearClientBanner(){
 
 function validateStep2(){
   const checks=[
-    {id:'f-name-ar', l:'الاسم بالعربية'},
     {id:'f-nin',     l:'رقم التعريف الوطني (18 رقم)', extra: v=>v.length===18},
+    {id:'f-name-ar', l:'الاسم بالعربية'},
     {id:'f-dob',     l:'تاريخ الميلاد'},
     {id:'f-phone',   l:'رقم الهاتف'},
    ];
