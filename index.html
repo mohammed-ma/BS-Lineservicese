@@ -603,7 +603,7 @@ async function submitRequest(){
     name_ar:        document.getElementById('f-name-ar').value.trim(),
     name_fr:        document.getElementById('f-name-fr').value.trim(),
     nin:            document.getElementById('f-nin').value.trim(),
-    dob:            document.getElementById('f-dob').value.trim(),
+    dob:            document.getElementById('f-dob').value||null,
     phone:          document.getElementById('f-phone').value.trim(),
     address:        document.getElementById('f-address').value.trim(),
     email:          document.getElementById('f-email').value.trim(),
@@ -673,7 +673,7 @@ function checkNIN(inp){
 async function lookupClient(nin){
   // البحث في آخر طلب لهذا الزبون
   const {data,error}=await sb.from('requests')
-    .select('name_ar,name_fr,phone,address,email')
+   .select('name_ar,name_fr,dob,phone,address,email')
     .eq('nin',nin)
     .order('created_at',{ascending:false})
     .limit(1)
@@ -684,7 +684,7 @@ async function lookupClient(nin){
   // تعبئة الحقول تلقائياً
   document.getElementById('f-name-ar').value = data.name_ar||'';
   document.getElementById('f-name-fr').value = data.name_fr||'';
-  document.getElementById('f-dob').value = data.name_fr||'';
+  if(data.dob) document.getElementById('f-dob').value = data.dob;
   document.getElementById('f-phone').value   = data.phone||'';
   document.getElementById('f-address').value = data.address||'';
   document.getElementById('f-email').value   = data.email||'';
