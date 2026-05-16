@@ -701,12 +701,10 @@ function clearClientBanner(){
 function validateStep2(){
   const checks=[
     {id:'f-name-ar', l:'الاسم بالعربية'},
-    {id:'f-name-fr', l:'Nom en français'},
     {id:'f-nin',     l:'رقم التعريف الوطني (18 رقم)', extra: v=>v.length===18},
     {id:'f-dob',     l:'تاريخ الميلاد'},
     {id:'f-phone',   l:'رقم الهاتف'},
-    {id:'f-address', l:'العنوان'},
-  ];
+   ];
   const missing=[];
   for(const c of checks){
     const v=document.getElementById(c.id).value.trim();
