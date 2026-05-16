@@ -493,9 +493,9 @@ function goTo(n){
 function goToReview(){
   const rows=[
     ['الخدمة',         sel?sel.name:'—'],
+    ['NIN',            document.getElementById('f-nin').value||'—'],    
     ['الاسم بالعربية', document.getElementById('f-name-ar').value||'—'],
     ['Nom français',   document.getElementById('f-name-fr').value||'—'],
-    ['NIN',            document.getElementById('f-nin').value||'—'],
     ['تاريخ الميلاد',  document.getElementById('f-dob').value||'—'],
     ['الهاتف',         document.getElementById('f-phone').value||'—'],
     ['العنوان',        document.getElementById('f-address').value||'—'],
