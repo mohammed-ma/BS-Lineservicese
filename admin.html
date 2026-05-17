@@ -175,8 +175,8 @@
           </div>
         </div>
         <div class="filter-bar">
-          <button class="flt active" data-f="all" onclick="setFlt(this)">الكل</button>
-          <button class="flt" data-f="new" onclick="setFlt(this)">جديد</button>
+          <button class="flt" data-f="all" onclick="setFlt(this)">الكل</button>
+          <button class="flt active" data-f="new" onclick="setFlt(this)">جديد</button>
           <button class="flt" data-f="review" onclick="setFlt(this)">قيد المراجعة</button>
           <button class="flt" data-f="done" onclick="setFlt(this)">مكتمل</button>
           <button class="flt" data-f="rejected" onclick="setFlt(this)">مرفوض</button>
@@ -349,7 +349,7 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 
 const SL={new:{t:'جديد',c:'badge-new'},review:{t:'قيد المراجعة',c:'badge-review'},done:{t:'مكتمل',c:'badge-done'},rejected:{t:'مرفوض',c:'badge-rejected'}};
 
-let curFlt='all';
+let curFlt='new';
 let editAgentId=null;
 let AGENTS=[];
 let REQUESTS=[];
@@ -627,7 +627,7 @@ function renderTable(){
   let html='';
   Object.entries(groups).forEach(([svcName,list],gi)=>{
     const key='tbl-'+gi;
-    const isOpen=openGroups[key]!==false; // مفتوح بالافتراضي
+    const isOpen=openGroups[key]===true; // مفتوح بالافتراضي
     const svcIcon=SERVICES.find(s=>s.name===svcName)?.icon||'📄';
     html+=`
       <div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)">
