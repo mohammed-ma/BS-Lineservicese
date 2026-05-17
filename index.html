@@ -529,7 +529,7 @@ function goToReview(){
 const MY_RIB='00799999000590816148';
 let selectedPayMethod='office';
 let receiptFile=null;
-
+function backToStep3(){ goTo(3); }
 function selectPay(el,method){
   document.querySelectorAll('.pay-opt').forEach(o=>o.classList.remove('sel'));
   el.classList.add('sel');
