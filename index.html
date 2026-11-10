@@ -405,7 +405,11 @@
 const SB_URL = 'https://lfazaqaovdfikoyzhozw.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmYXphcWFvdmRmaWtveXpob3p3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDEzODYsImV4cCI6MjA5Mjc3NzM4Nn0.HstENezbz61oRgVvAxeUg6_YI4lW8qCwdeONR3uyhBM';
 const sb = supabase.createClient(SB_URL, SB_KEY);
-
+// ✅ إبقاء Supabase نشطاً
+sb.from('requests')
+  .select('id', { count: 'exact', head: true })
+  .then(() => console.log('✅ Supabase نشط'))
+  .catch((err) => console.log('❌ خطأ:', err));
 // ══ الخدمات — تُحمَّل من Supabase ══
 let SERVICES = [];
 let sel=null, cur=1;
